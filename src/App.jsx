@@ -1,60 +1,38 @@
-import React, { useEffect, useRef, useState } from 'react'
-import mapboxgl from 'mapbox-gl'
+import React from 'react'
+import Map from './components/Map'
 
-// Replace with your Mapbox access token
-mapboxgl.accessToken = 'pk.eyJ1Ijoic2FtYjIzNCIsImEiOiJjbWRkZ25xcmcwNHhvMmxxdGU3c2J0eTZnIn0.j5NEdvNhU_eZ1tirQpKEAA'
-
-export default function Map() {
-  const mapContainer = useRef(null)
-  const map = useRef(null)
-  const [lng, setLng] = useState(-0.1276)  // Default: London
-  const [lat, setLat] = useState(51.5074)
-  const [zoom, setZoom] = useState(9)
-  const [pins, setPins] = useState([])
-
-  useEffect(() => {
-    if (map.current) return // initialize map only once
-
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v11',
-      center: [lng, lat],
-      zoom: zoom
-    })
-
-    map.current.on('move', () => {
-      setLng(map.current.getCenter().lng.toFixed(4))
-      setLat(map.current.getCenter().lat.toFixed(4))
-      setZoom(map.current.getZoom().toFixed(2))
-    })
-
-    // Add click handler to add pins
-    map.current.on('click', (e) => {
-      const { lng, lat } = e.lngLat
-      setPins(prev => [...prev, { lng, lat }])
-      new mapboxgl.Marker().setLngLat([lng, lat]).addTo(map.current)
-    })
-  }, [])
-
+export default function App() {
   return (
-    <>
-      <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
-      <div
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Navbar */}
+      <nav
         style={{
-          position: 'absolute',
-          top: 60, // below 50px navbar + 10px margin
-          left: 10,
-          background: 'white',
-          padding: '10px',
-          zIndex: 1,
-          borderRadius: '4px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          fontSize: '0.9rem',
+          height: '60px',
+          backgroundColor: '#0077cc',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 20px',
+          fontWeight: 'bold',
+          fontSize: '1.2rem',
+          boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+          zIndex: 2,
         }}
       >
-        <div>Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}</div>
+        <div>ItsJustAMap</div>
+
+        <div style={{ display: 'flex', gap: '20px', fontSize: '1rem' }}>
+          <a href="#" style={{ color: 'white', textDecoration: 'none' }}>Features</a>
+          <a href="#" style={{ color: 'white', textDecoration: 'none' }}>Pricing</a>
+          <a href="#" style={{ color: 'white', textDecoration: 'none' }}>Login / Sign Up</a>
+        </div>
+      </nav>
+
+      {/* Full height map below navbar */}
+      <div style={{ flex: 1, position: 'relative' }}>
+        <Map />
       </div>
-    </>
+    </div>
   )
 }
-
