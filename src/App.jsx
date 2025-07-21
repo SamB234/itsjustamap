@@ -8,28 +8,28 @@ export default function App() {
       <nav
         style={{
           height: '60px',
-          backgroundColor: '#0077cc',
+          backgroundColor: '#1a73e8',
           color: 'white',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 20px',
-          fontWeight: 'bold',
-          fontSize: '1.2rem',
-          boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+          padding: '0 30px',
+          fontWeight: '600',
+          fontSize: '1rem',
+          boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
           zIndex: 2,
         }}
       >
-        <div>ItsJustAMap</div>
+        <div style={{ fontSize: '1.2rem' }}>ItsJustAMap</div>
 
-        <div style={{ display: 'flex', gap: '20px', fontSize: '1rem' }}>
+        <div style={{ display: 'flex', gap: '25px' }}>
           <a href="#" style={{ color: 'white', textDecoration: 'none' }}>Features</a>
           <a href="#" style={{ color: 'white', textDecoration: 'none' }}>Pricing</a>
           <a href="#" style={{ color: 'white', textDecoration: 'none' }}>Login / Sign Up</a>
         </div>
       </nav>
 
-      {/* Full height map below navbar */}
+      {/* Map container */}
       <div style={{ flex: 1, position: 'relative' }}>
         <Map />
       </div>
