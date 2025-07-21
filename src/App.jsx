@@ -3,34 +3,22 @@ import Map from './components/Map'
 
 export default function App() {
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="flex flex-col h-screen">
       {/* Navbar */}
-      <nav
-        style={{
-          height: '60px',
-          backgroundColor: '#1a73e8',
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 30px',
-          fontWeight: '600',
-          fontSize: '1rem',
-          boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-          zIndex: 2,
-        }}
-      >
-        <div style={{ fontSize: '1.2rem' }}>ItsJustAMap</div>
+      <nav className="h-14 bg-blue-600 text-white flex items-center justify-between px-8 font-semibold shadow-md z-10">
+        {/* Logo */}
+        <div className="text-lg">ItsJustAMap</div>
 
-        <div style={{ display: 'flex', gap: '25px' }}>
-          <a href="#" style={{ color: 'white', textDecoration: 'none' }}>Features</a>
-          <a href="#" style={{ color: 'white', textDecoration: 'none' }}>Pricing</a>
-          <a href="#" style={{ color: 'white', textDecoration: 'none' }}>Login / Sign Up</a>
+        {/* Navigation Links */}
+        <div className="flex gap-6 text-sm">
+          <a href="#" className="hover:underline">Features</a>
+          <a href="#" className="hover:underline">Pricing</a>
+          <a href="#" className="hover:underline">Login / Sign Up</a>
         </div>
       </nav>
 
       {/* Map container */}
-      <div style={{ flex: 1, position: 'relative' }}>
+      <div className="flex-1 relative">
         <Map />
       </div>
     </div>
