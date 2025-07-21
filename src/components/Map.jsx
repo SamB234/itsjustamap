@@ -46,20 +46,8 @@ export default function Map() {
           left: 0,
         }}
       />
-      <div
-        style={{
-          position: 'absolute',
-          top: '75px',
-          left: '20px',
-          background: 'rgba(255, 255, 255, 0.85)',
-          padding: '8px 12px',
-          borderRadius: '8px',
-          boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-          fontSize: '0.85rem',
-          zIndex: 1,
-        }}
-      >
-        <div>📍 Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}</div>
+      <div className="absolute top-4 left-4 bg-white bg-opacity-90 px-4 py-2 rounded-lg shadow text-sm font-medium z-10">
+        <div>📍 Lng: {lng} | Lat: {lat} | Zoom: {zoom}</div>
       </div>
     </>
   )
