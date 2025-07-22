@@ -11,6 +11,7 @@ export default function Map() {
   const [lat, setLat] = useState(51.5074)
   const [zoom, setZoom] = useState(9)
   const [droppedPins, setDroppedPins] = useState([])
+  const [hoveredPinIndex, setHoveredPinIndex] = useState(null)
   const [activePopup, setActivePopup] = useState(null)
 
   useEffect(() => {
@@ -30,16 +31,18 @@ export default function Map() {
     })
   }, [])
 
-  // Handle arrow click on a dropped pin
-  function handleArrowClick(direction, pinCoordinates) {
-    setActivePopup({ direction, pin: pinCoordinates })
-  }
-
-  // Drop a pin at the current map center
   function dropPinAtCenter() {
     const center = map.current.getCenter()
     const newPin = [center.lng, center.lat]
     setDroppedPins([...droppedPins, newPin])
+  }
+
+  function handleArrowClick(direction, pinCoordinates, screenPosition) {
+    setActivePopup({
+      direction,
+      pin: pinCoordinates,
+      position: screenPosition,
+    })
   }
 
   return (
@@ -65,7 +68,7 @@ export default function Map() {
         </div>
       </div>
 
-      {/* Dropped pins with arrows */}
+      {/* Render dropped pins */}
       {droppedPins.map((pin, index) => {
         const [lng, lat] = pin
         const point = map.current?.project([lng, lat])
@@ -80,16 +83,35 @@ export default function Map() {
               top: `${point.y}px`,
               transform: 'translate(-50%, -50%)',
             }}
+            onMouseEnter={() => setHoveredPinIndex(index)}
+            onMouseLeave={() => setHoveredPinIndex(null)}
           >
-            <ArrowPin onArrowClick={(dir) => handleArrowClick(dir, pin)} />
+            {/* Base 📍 pin */}
+            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md">
+              📍
+            </div>
+
+            {/* Show arrows only on hover */}
+            {hoveredPinIndex === index && (
+              <ArrowPin
+                onArrowClick={(dir) =>
+                  handleArrowClick(dir, pin, { x: point.x, y: point.y })
+                }
+              />
+            )}
           </div>
         )
       })}
 
-      {/* Popup UI on arrow click */}
+      {/* Popup UI near clicked arrow */}
       {activePopup && (
         <div
-          className="absolute top-24 left-4 bg-white/80 backdrop-blur-md rounded-xl shadow-md p-4 w-72 z-30"
+          className="absolute bg-white/80 backdrop-blur-md rounded-xl shadow-md p-4 w-72 z-30 transition-all duration-300"
+          style={{
+            left: `${activePopup.position.x}px`,
+            top: `${activePopup.position.y}px`,
+            transform: 'translate(-50%, -120%)',
+          }}
         >
           <div className="font-semibold text-gray-800 mb-2">
             AI Explorer – {activePopup.direction}
