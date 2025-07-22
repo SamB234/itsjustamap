@@ -24,32 +24,34 @@ export default function Map() {
       zoom: zoom,
     })
 
-    map.current.on('load', () => {
-      // Add placeholder image to silence "rectangle-yellow-5" error
+    // Register a simple yellow square placeholder image
+    map.current.on('style.load', () => {
+      const width = 20
+      const height = 20
+      const data = new Uint8Array(width * height * 4)
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = 255      // R
+        data[i + 1] = 255  // G
+        data[i + 2] = 0    // B
+        data[i + 3] = 255  // A
+      }
+
+      // Avoid duplicate registration
       if (!map.current.hasImage('rectangle-yellow-5')) {
-        const size = 1
-        const canvas = document.createElement('canvas')
-        canvas.width = size
-        canvas.height = size
-        const ctx = canvas.getContext('2d')
-        ctx.clearRect(0, 0, size, size)
-        map.current.addImage('rectangle-yellow-5', canvas)
+        map.current.addImage('rectangle-yellow-5', {
+          width,
+          height,
+          data,
+        })
       }
     })
 
     map.current.on('move', () => {
-      const center = map.current.getCenter()
-      setLng(center.lng.toFixed(4))
-      setLat(center.lat.toFixed(4))
+      setLng(map.current.getCenter().lng.toFixed(4))
+      setLat(map.current.getCenter().lat.toFixed(4))
       setZoom(map.current.getZoom().toFixed(2))
-
-      // Update popup screen position on map move
-      if (activePopup) {
-        const newScreenPos = map.current.project(activePopup.pin)
-        setActivePopup((prev) => ({ ...prev, position: newScreenPos }))
-      }
     })
-  }, [activePopup])
+  }, [])
 
   function dropPinAtCenter() {
     if (!map.current) return
@@ -58,16 +60,14 @@ export default function Map() {
     setDroppedPins([...droppedPins, newPin])
   }
 
-  function handleArrowClick(direction, pinCoordinates) {
-    const screenPos = map.current.project(pinCoordinates)
+  function handleArrowClick(direction, pinCoordinates, screenPosition) {
     setActivePopup({
       direction,
       pin: pinCoordinates,
-      position: screenPos,
+      position: screenPosition,
     })
   }
 
-  // Dismiss popup when clicking outside it
   function handleClickAway(e) {
     if (!e.target.closest('.active-popup')) {
       setActivePopup(null)
@@ -85,18 +85,12 @@ export default function Map() {
 
   return (
     <>
-      {/* Map container */}
-      <div
-        ref={mapContainer}
-        className="absolute top-0 left-0 w-full h-full"
-      />
+      <div ref={mapContainer} className="absolute top-0 left-0 w-full h-full" />
 
-      {/* Info panel */}
       <div className="absolute top-[75px] left-5 bg-white/85 px-3 py-2 rounded shadow-sm text-sm z-10">
         📍 Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}
       </div>
 
-      {/* Fixed center pin to drop */}
       <div
         className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer select-none"
         onClick={dropPinAtCenter}
@@ -106,7 +100,6 @@ export default function Map() {
         </div>
       </div>
 
-      {/* Render dropped pins */}
       {droppedPins.map((pin, index) => {
         const [lng, lat] = pin
         const point = map.current?.project([lng, lat])
@@ -140,7 +133,7 @@ export default function Map() {
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin
                     onArrowClick={(dir) =>
-                      handleArrowClick(dir, pin)
+                      handleArrowClick(dir, pin, { x: point.x, y: point.y })
                     }
                   />
                 </div>
@@ -150,7 +143,6 @@ export default function Map() {
         )
       })}
 
-      {/* Popup UI near clicked arrow */}
       {activePopup && (
         <div
           className="absolute bg-white/80 backdrop-blur-md rounded-xl shadow-md p-4 w-72 z-30 transition-all duration-300 active-popup"
