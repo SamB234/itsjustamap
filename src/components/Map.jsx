@@ -10,7 +10,8 @@ export default function Map() {
   const [lng, setLng] = useState(-0.1276)
   const [lat, setLat] = useState(51.5074)
   const [zoom, setZoom] = useState(9)
-  const [droppedPins, setDroppedPins] = useState([]) // Store dropped pin coordinates
+  const [droppedPins, setDroppedPins] = useState([])
+  const [activePopup, setActivePopup] = useState(null)
 
   useEffect(() => {
     if (map.current) return
@@ -29,13 +30,12 @@ export default function Map() {
     })
   }, [])
 
-  // Handle direction arrow click
+  // Handle arrow click on a dropped pin
   function handleArrowClick(direction, pinCoordinates) {
-    alert(`Clicked ${direction} for pin at ${pinCoordinates[0]}, ${pinCoordinates[1]}`)
-    // Future: Use coordinates + direction for AI-powered suggestions
+    setActivePopup({ direction, pin: pinCoordinates })
   }
 
-  // Handle center pin click to drop a new pin
+  // Drop a pin at the current map center
   function dropPinAtCenter() {
     const center = map.current.getCenter()
     const newPin = [center.lng, center.lat]
@@ -44,30 +44,28 @@ export default function Map() {
 
   return (
     <>
+      {/* Map container */}
       <div
         ref={mapContainer}
         className="absolute top-0 left-0 w-full h-full"
       />
 
-      {/* Map info (can hide later) */}
-      <div
-        className="absolute top-[75px] left-5 bg-white/85 px-3 py-2 rounded shadow-sm text-sm z-10"
-      >
+      {/* Info panel */}
+      <div className="absolute top-[75px] left-5 bg-white/85 px-3 py-2 rounded shadow-sm text-sm z-10">
         📍 Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}
       </div>
 
-      {/* Fixed Center Pin (Click to drop) */}
+      {/* Fixed center pin to drop */}
       <div
         className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer select-none"
         onClick={dropPinAtCenter}
       >
-        {/* Just the center 📍 */}
         <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center text-white font-bold">
           📍
         </div>
       </div>
 
-      {/* Render dropped pins with arrows */}
+      {/* Dropped pins with arrows */}
       {droppedPins.map((pin, index) => {
         const [lng, lat] = pin
         const point = map.current?.project([lng, lat])
@@ -87,6 +85,28 @@ export default function Map() {
           </div>
         )
       })}
+
+      {/* Popup UI on arrow click */}
+      {activePopup && (
+        <div
+          className="absolute top-24 left-4 bg-white/80 backdrop-blur-md rounded-xl shadow-md p-4 w-72 z-30"
+        >
+          <div className="font-semibold text-gray-800 mb-2">
+            AI Explorer – {activePopup.direction}
+          </div>
+          <p className="text-sm text-gray-700 mb-4">
+            AI-generated info about this area will go here.
+          </p>
+          <div className="flex flex-col gap-2">
+            <button className="border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white transition rounded-full px-4 py-1 text-sm">
+              Explore {activePopup.direction}
+            </button>
+            <button className="border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white transition rounded-full px-4 py-1 text-sm">
+              Connect to Another Marker
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 }
