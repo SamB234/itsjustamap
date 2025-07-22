@@ -50,7 +50,7 @@ export default function ArrowPin({ onArrowClick }) {
       {/* West */}
       <div
         onClick={() => onArrowClick('W')}
-        className="absolute top-1/2 -left-8 transform -translate-y-1/2 rotate-90"
+        className="absolute top-1/2 -left-8 transform -translate-y-1/2 -rotate-90"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
