@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import ArrowPin from './ArrowPin'
 
-mapboxgl.accessToken = 'your_access_token_here'
+mapboxgl.accessToken = 'pk.eyJ1Ijoic2FtYjIzNCIsImEiOiJjbWRkZ25xcmcwNHhvMmxxdGU3c2J0eTZnIn0.j5NEdvNhU_eZ1tirQpKEAA'
 
 export default function Map() {
   const mapContainer = useRef(null)
