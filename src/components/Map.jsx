@@ -13,7 +13,6 @@ export default function Map() {
   const [droppedPins, setDroppedPins] = useState([])
   const [hoveredPinIndex, setHoveredPinIndex] = useState(null)
   const [activePopup, setActivePopup] = useState(null)
-  const [mapLoaded, setMapLoaded] = useState(false)
 
   useEffect(() => {
     if (map.current) return
@@ -25,27 +24,28 @@ export default function Map() {
       zoom: zoom,
     })
 
-    map.current.on('load', () => {
-      // Add yellow placeholder image
+    map.current.on('style.load', () => {
       const width = 20
       const height = 20
       const data = new Uint8Array(width * height * 4)
       for (let i = 0; i < data.length; i += 4) {
-        data[i] = 255
-        data[i + 1] = 255
-        data[i + 2] = 0
-        data[i + 3] = 255
+        data[i] = 255      // R
+        data[i + 1] = 255  // G
+        data[i + 2] = 0    // B
+        data[i + 3] = 255  // A
       }
 
       if (!map.current.hasImage('rectangle-yellow-5')) {
-        map.current.addImage(
-          'rectangle-yellow-5',
-          { width, height, data },
-          { sdf: false }
-        )
+        try {
+          map.current.addImage(
+            'rectangle-yellow-5',
+            { width, height, data },
+            { sdf: false }
+          )
+        } catch (e) {
+          console.warn('Image registration error:', e)
+        }
       }
-
-      setMapLoaded(true)
     })
 
     map.current.on('move', () => {
@@ -59,7 +59,7 @@ export default function Map() {
     if (!map.current) return
     const center = map.current.getCenter()
     const newPin = [center.lng, center.lat]
-    setDroppedPins([...droppedPins, newPin])
+    setDroppedPins((prev) => [...prev, newPin])
   }
 
   function handleArrowClick(direction, pinCoordinates, screenPosition) {
@@ -71,11 +71,9 @@ export default function Map() {
   }
 
   function handleClickAway(e) {
-    setTimeout(() => {
-      if (!e.target.closest('.active-popup')) {
-        setActivePopup(null)
-      }
-    }, 0)
+    if (!e.target.closest('.active-popup')) {
+      setActivePopup(null)
+    }
   }
 
   useEffect(() => {
@@ -86,6 +84,25 @@ export default function Map() {
     }
     return () => window.removeEventListener('click', handleClickAway)
   }, [activePopup])
+
+  // Keep popup pinned to marker
+  useEffect(() => {
+    if (!map.current || !activePopup?.pin) return
+
+    const updatePopupPosition = () => {
+      const point = map.current.project(activePopup.pin)
+      setActivePopup((prev) =>
+        prev ? { ...prev, position: point } : null
+      )
+    }
+
+    updatePopupPosition()
+    map.current.on('move', updatePopupPosition)
+
+    return () => {
+      map.current.off('move', updatePopupPosition)
+    }
+  }, [activePopup?.pin])
 
   return (
     <>
@@ -104,49 +121,48 @@ export default function Map() {
         </div>
       </div>
 
-      {mapLoaded &&
-        droppedPins.map((pin, index) => {
-          const [lng, lat] = pin
-          const point = map.current?.project([lng, lat])
-          if (!point) return null
+      {droppedPins.map((pin, index) => {
+        const [lng, lat] = pin
+        const point = map.current?.project([lng, lat])
+        if (!point) return null
 
-          return (
+        return (
+          <div
+            key={index}
+            className="absolute z-20"
+            style={{
+              left: `${point.x}px`,
+              top: `${point.y}px`,
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none',
+            }}
+          >
             <div
-              key={index}
-              className="absolute z-20"
-              style={{
-                left: `${point.x}px`,
-                top: `${point.y}px`,
-                transform: 'translate(-50%, -50%)',
-                pointerEvents: 'none',
-              }}
+              className="relative"
+              style={{ width: '80px', height: '80px' }}
+              onMouseEnter={() => setHoveredPinIndex(index)}
+              onMouseLeave={() => setHoveredPinIndex(null)}
             >
               <div
-                className="relative"
-                style={{ width: '80px', height: '80px' }}
-                onMouseEnter={() => setHoveredPinIndex(index)}
-                onMouseLeave={() => setHoveredPinIndex(null)}
+                className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-10"
+                style={{ pointerEvents: 'auto' }}
               >
-                <div
-                  className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-10"
-                  style={{ pointerEvents: 'auto' }}
-                >
-                  📍
-                </div>
-
-                {hoveredPinIndex === index && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
-                    <ArrowPin
-                      onArrowClick={(dir) =>
-                        handleArrowClick(dir, pin, { x: point.x, y: point.y })
-                      }
-                    />
-                  </div>
-                )}
+                📍
               </div>
+
+              {hoveredPinIndex === index && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
+                  <ArrowPin
+                    onArrowClick={(dir) =>
+                      handleArrowClick(dir, pin, { x: point.x, y: point.y })
+                    }
+                  />
+                </div>
+              )}
             </div>
-          )
-        })}
+          </div>
+        )
+      })}
 
       {activePopup && activePopup.position && (
         <div
