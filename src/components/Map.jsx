@@ -2,12 +2,13 @@ import React, { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import ArrowPin from './ArrowPin'
 
-mapboxgl.accessToken = 'pk.eyJ1Ijoic2FtYjIzNCIsImEiOiJjbWRkZ25xcmcwNHhvMmxxdGU3c2J0eTZnIn0.j5NEdvNhU_eZ1tirQpKEAA'
+mapboxgl.accessToken =
+  'pk.eyJ1Ijoic2FtYjIzNCIsImEiOiJjbWRkZ25xcmcwNHhvMmxxdGU3c2J0eTZnIn0.j5NEdvNhU_eZ1tirQpKEAA'
 
 export default function Map() {
   const mapContainer = useRef(null)
   const map = useRef(null)
-  const popupRef = useRef(null) // We'll store the Mapbox Popup instance here
+  const popupRef = useRef(null) // Store Mapbox Popup instance
 
   const [lng, setLng] = useState(-0.1276)
   const [lat, setLat] = useState(51.5074)
@@ -16,7 +17,7 @@ export default function Map() {
   const [hoveredPinIndex, setHoveredPinIndex] = useState(null)
   const [activePopupData, setActivePopupData] = useState(null) // { lng, lat, direction }
 
-  // Initialize the map once
+  // Initialize map once
   useEffect(() => {
     if (map.current) return
 
@@ -34,18 +35,17 @@ export default function Map() {
     })
   }, [])
 
-  // Manage popup creation / update on activePopupData change
+  // Manage popup creation/update
   useEffect(() => {
     if (!map.current) return
 
-    // Remove old popup if exists
+    // Remove existing popup
     if (popupRef.current) {
       popupRef.current.remove()
       popupRef.current = null
     }
 
     if (activePopupData) {
-      // Create a new popup tied to the marker's lng/lat
       popupRef.current = new mapboxgl.Popup({ closeOnClick: true, offset: 25 })
         .setLngLat([activePopupData.lng, activePopupData.lat])
         .setHTML(`
@@ -59,8 +59,8 @@ export default function Map() {
           </button>
         `)
         .addTo(map.current)
-      
-      // Optional: Close popup when map is clicked anywhere else
+
+      // Close popup on map click elsewhere
       map.current.on('click', () => {
         popupRef.current?.remove()
         popupRef.current = null
@@ -69,14 +69,14 @@ export default function Map() {
     }
   }, [activePopupData])
 
-  // Drop a pin at the current center of the map
+  // Drop pin at center of map
   function dropPinAtCenter() {
+    if (!map.current) return
     const center = map.current.getCenter()
     setDroppedPins([...droppedPins, [center.lng, center.lat]])
   }
 
-  // Called when an arrow is clicked on a dropped pin
-  // Just pass the pin's lng, lat and the direction clicked
+  // Handle arrow click on dropped pin
   function handleArrowClick(direction, pinCoordinates) {
     setActivePopupData({
       lng: pinCoordinates[0],
@@ -105,23 +105,32 @@ export default function Map() {
         </div>
       </div>
 
-      {/* Render dropped pins using Mapbox Markers */}
+      {/* Render dropped pins manually positioned */}
       {droppedPins.map((pin, index) => {
         const [pinLng, pinLat] = pin
 
+        if (!map.current) return null
+
+        const point = map.current.project([pinLng, pinLat])
+        // point = { x, y } in pixels relative to map container top-left corner
+
         return (
-          <Marker
+          <div
             key={index}
-            longitude={pinLng}
-            latitude={pinLat}
-            anchor="center"
+            className="absolute"
+            style={{
+              left: point.x,
+              top: point.y,
+              transform: 'translate(-50%, -50%)',
+              width: 80,
+              height: 80,
+              cursor: 'pointer',
+              zIndex: 1000,
+            }}
+            onMouseEnter={() => setHoveredPinIndex(index)}
+            onMouseLeave={() => setHoveredPinIndex(null)}
           >
-            <div
-              className="relative w-20 h-20"
-              onMouseEnter={() => setHoveredPinIndex(index)}
-              onMouseLeave={() => setHoveredPinIndex(null)}
-              style={{ cursor: 'pointer' }}
-            >
+            <div className="relative w-20 h-20 pointer-events-auto">
               {/* Main pin */}
               <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-10">
                 📍
@@ -130,13 +139,11 @@ export default function Map() {
               {/* Show arrows only when hovered */}
               {hoveredPinIndex === index && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
-                  <ArrowPin
-                    onArrowClick={(dir) => handleArrowClick(dir, pin)}
-                  />
+                  <ArrowPin onArrowClick={(dir) => handleArrowClick(dir, pin)} />
                 </div>
               )}
             </div>
-          </Marker>
+          </div>
         )
       })}
     </>
