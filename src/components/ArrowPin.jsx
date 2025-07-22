@@ -1,9 +1,15 @@
 import React from 'react'
 
 export default function ArrowPin({ onArrowClick }) {
-  // onArrowClick(direction) - callback when arrow clicked
+  // onArrowClick(direction, event) - callback when arrow clicked, now passes event
 
   const arrowClass = "w-6 h-6 text-blue-700 hover:text-blue-900 cursor-pointer transition"
+
+  // Wrapper click handler to pass the event
+  function handleClick(direction, e) {
+    e.stopPropagation()
+    onArrowClick(direction, e)
+  }
 
   return (
     <div className="relative flex flex-col items-center">
@@ -15,7 +21,7 @@ export default function ArrowPin({ onArrowClick }) {
       {/* Arrows */}
       {/* North */}
       <div
-        onClick={() => onArrowClick('N')}
+        onClick={(e) => handleClick('N', e)}
         className="absolute -top-8 left-1/2 transform -translate-x-1/2"
       >
         <svg
@@ -32,7 +38,7 @@ export default function ArrowPin({ onArrowClick }) {
 
       {/* South */}
       <div
-        onClick={() => onArrowClick('S')}
+        onClick={(e) => handleClick('S', e)}
         className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 rotate-180"
       >
         <svg
@@ -49,7 +55,7 @@ export default function ArrowPin({ onArrowClick }) {
 
       {/* West */}
       <div
-        onClick={() => onArrowClick('W')}
+        onClick={(e) => handleClick('W', e)}
         className="absolute top-1/2 -left-8 transform -translate-y-1/2 -rotate-90"
       >
         <svg
@@ -66,7 +72,7 @@ export default function ArrowPin({ onArrowClick }) {
 
       {/* East */}
       <div
-        onClick={() => onArrowClick('E')}
+        onClick={(e) => handleClick('E', e)}
         className="absolute top-1/2 -right-8 transform -translate-y-1/2 rotate-90"
       >
         <svg
