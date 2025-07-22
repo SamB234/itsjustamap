@@ -8,7 +8,6 @@ mapboxgl.accessToken =
 export default function Map() {
   const mapContainer = useRef(null)
   const map = useRef(null)
-  const popupRef = useRef(null) // Store Mapbox Popup instance
 
   const [lng, setLng] = useState(-0.1276)
   const [lat, setLat] = useState(51.5074)
@@ -16,6 +15,7 @@ export default function Map() {
   const [droppedPins, setDroppedPins] = useState([])
   const [hoveredPinIndex, setHoveredPinIndex] = useState(null)
   const [activePopupData, setActivePopupData] = useState(null) // { lng, lat, direction }
+  const [popupPos, setPopupPos] = useState({ x: 0, y: 0 }) // screen pixel position of popup
 
   // Initialize map once
   useEffect(() => {
@@ -35,39 +35,16 @@ export default function Map() {
     })
   }, [])
 
-  // Manage popup creation/update
+  // Update popup screen position whenever activePopupData or map changes
   useEffect(() => {
-    if (!map.current) return
-
-    // Remove existing popup
-    if (popupRef.current) {
-      popupRef.current.remove()
-      popupRef.current = null
+    if (!map.current || !activePopupData) {
+      setPopupPos(null)
+      return
     }
 
-    if (activePopupData) {
-      popupRef.current = new mapboxgl.Popup({ closeOnClick: true, offset: 25 })
-        .setLngLat([activePopupData.lng, activePopupData.lat])
-        .setHTML(`
-          <div style="font-weight:bold; margin-bottom: 6px;">AI Explorer – ${activePopupData.direction}</div>
-          <p style="margin-bottom: 8px;">AI-generated info about this area will go here.</p>
-          <button style="margin-bottom:4px; padding:4px 8px; border:1px solid #3b82f6; color:#3b82f6; border-radius:9999px; background:transparent; cursor:pointer;">
-            Explore ${activePopupData.direction}
-          </button>
-          <button style="padding:4px 8px; border:1px solid #3b82f6; color:#3b82f6; border-radius:9999px; background:transparent; cursor:pointer;">
-            Connect to Another Marker
-          </button>
-        `)
-        .addTo(map.current)
-
-      // Close popup on map click elsewhere
-      map.current.on('click', () => {
-        popupRef.current?.remove()
-        popupRef.current = null
-        setActivePopupData(null)
-      })
-    }
-  }, [activePopupData])
+    const point = map.current.project([activePopupData.lng, activePopupData.lat])
+    setPopupPos({ x: point.x, y: point.y })
+  }, [activePopupData, lng, lat, zoom])
 
   // Drop pin at center of map
   function dropPinAtCenter() {
@@ -83,6 +60,11 @@ export default function Map() {
       lat: pinCoordinates[1],
       direction,
     })
+  }
+
+  // Close popup when clicking outside popup or on close button
+  function handleClosePopup() {
+    setActivePopupData(null)
   }
 
   return (
@@ -112,7 +94,6 @@ export default function Map() {
         if (!map.current) return null
 
         const point = map.current.project([pinLng, pinLat])
-        // point = { x, y } in pixels relative to map container top-left corner
 
         return (
           <div
@@ -146,6 +127,65 @@ export default function Map() {
           </div>
         )
       })}
+
+      {/* React Popup */}
+      {activePopupData && popupPos && (
+        <div
+          className="absolute z-50 max-w-xs p-4"
+          style={{
+            left: popupPos.x,
+            top: popupPos.y,
+            transform: 'translate(-50%, -110%)', // above the pin
+            background: 'rgba(240, 240, 240, 0.85)', // light grey transparent
+            backdropFilter: 'blur(8px)',
+            borderRadius: '12px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            color: '#111',
+            fontFamily: 'system-ui, sans-serif',
+          }}
+          onClick={(e) => e.stopPropagation()} // Prevent map click from closing popup when clicking inside popup
+        >
+          <div className="flex justify-between items-center mb-2">
+            <strong className="text-lg">
+              AI Explorer – {activePopupData.direction}
+            </strong>
+            <button
+              onClick={handleClosePopup}
+              aria-label="Close popup"
+              className="text-gray-600 hover:text-gray-900 font-bold text-xl leading-none"
+              style={{ lineHeight: 1 }}
+            >
+              ×
+            </button>
+          </div>
+          <p className="mb-4">
+            AI-generated info about this area will go here.
+          </p>
+          <div className="flex gap-2">
+            <button
+              className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
+              onClick={() => alert(`Explore ${activePopupData.direction}`)}
+            >
+              Explore {activePopupData.direction}
+            </button>
+            <button
+              className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
+              onClick={() => alert('Connect to Another Marker')}
+            >
+              Connect to Another Marker
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Close popup if clicking anywhere on map container outside pins/popups */}
+      {activePopupData && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={handleClosePopup}
+          aria-hidden="true"
+        />
+      )}
     </>
   )
 }
