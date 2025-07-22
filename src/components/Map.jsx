@@ -13,6 +13,7 @@ export default function Map() {
   const [droppedPins, setDroppedPins] = useState([])
   const [hoveredPinIndex, setHoveredPinIndex] = useState(null)
   const [activePopup, setActivePopup] = useState(null)
+  const [mapLoaded, setMapLoaded] = useState(false)
 
   useEffect(() => {
     if (map.current) return
@@ -24,26 +25,27 @@ export default function Map() {
       zoom: zoom,
     })
 
-    // Register a simple yellow square placeholder image
-    map.current.on('style.load', () => {
+    map.current.on('load', () => {
+      // Add yellow placeholder image
       const width = 20
       const height = 20
       const data = new Uint8Array(width * height * 4)
       for (let i = 0; i < data.length; i += 4) {
-        data[i] = 255      // R
-        data[i + 1] = 255  // G
-        data[i + 2] = 0    // B
-        data[i + 3] = 255  // A
+        data[i] = 255
+        data[i + 1] = 255
+        data[i + 2] = 0
+        data[i + 3] = 255
       }
 
-      // Avoid duplicate registration
       if (!map.current.hasImage('rectangle-yellow-5')) {
-        map.current.addImage('rectangle-yellow-5', {
-          width,
-          height,
-          data,
-        },{ sdf: false })
+        map.current.addImage(
+          'rectangle-yellow-5',
+          { width, height, data },
+          { sdf: false }
+        )
       }
+
+      setMapLoaded(true)
     })
 
     map.current.on('move', () => {
@@ -69,9 +71,11 @@ export default function Map() {
   }
 
   function handleClickAway(e) {
-    if (!e.target.closest('.active-popup')) {
-      setActivePopup(null)
-    }
+    setTimeout(() => {
+      if (!e.target.closest('.active-popup')) {
+        setActivePopup(null)
+      }
+    }, 0)
   }
 
   useEffect(() => {
@@ -100,50 +104,51 @@ export default function Map() {
         </div>
       </div>
 
-      {droppedPins.map((pin, index) => {
-        const [lng, lat] = pin
-        const point = map.current?.project([lng, lat])
-        if (!point) return null
+      {mapLoaded &&
+        droppedPins.map((pin, index) => {
+          const [lng, lat] = pin
+          const point = map.current?.project([lng, lat])
+          if (!point) return null
 
-        return (
-          <div
-            key={index}
-            className="absolute z-20"
-            style={{
-              left: `${point.x}px`,
-              top: `${point.y}px`,
-              transform: 'translate(-50%, -50%)',
-              pointerEvents: 'none',
-            }}
-          >
+          return (
             <div
-              className="relative"
-              style={{ width: '80px', height: '80px' }}
-              onMouseEnter={() => setHoveredPinIndex(index)}
-              onMouseLeave={() => setHoveredPinIndex(null)}
+              key={index}
+              className="absolute z-20"
+              style={{
+                left: `${point.x}px`,
+                top: `${point.y}px`,
+                transform: 'translate(-50%, -50%)',
+                pointerEvents: 'none',
+              }}
             >
               <div
-                className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-10"
-                style={{ pointerEvents: 'auto' }}
+                className="relative"
+                style={{ width: '80px', height: '80px' }}
+                onMouseEnter={() => setHoveredPinIndex(index)}
+                onMouseLeave={() => setHoveredPinIndex(null)}
               >
-                📍
-              </div>
-
-              {hoveredPinIndex === index && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
-                  <ArrowPin
-                    onArrowClick={(dir) =>
-                      handleArrowClick(dir, pin, { x: point.x, y: point.y })
-                    }
-                  />
+                <div
+                  className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-10"
+                  style={{ pointerEvents: 'auto' }}
+                >
+                  📍
                 </div>
-              )}
-            </div>
-          </div>
-        )
-      })}
 
-      {activePopup && (
+                {hoveredPinIndex === index && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
+                    <ArrowPin
+                      onArrowClick={(dir) =>
+                        handleArrowClick(dir, pin, { x: point.x, y: point.y })
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+
+      {activePopup && activePopup.position && (
         <div
           className="absolute bg-white/80 backdrop-blur-md rounded-xl shadow-md p-4 w-72 z-30 transition-all duration-300 active-popup"
           style={{
