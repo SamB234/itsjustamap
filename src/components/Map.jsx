@@ -10,7 +10,7 @@ export default function Map() {
   const [lng, setLng] = useState(-0.1276)
   const [lat, setLat] = useState(51.5074)
   const [zoom, setZoom] = useState(9)
-  const [pins, setPins] = useState([])
+  const [droppedPins, setDroppedPins] = useState([]) // Store dropped pin coordinates
 
   useEffect(() => {
     if (map.current) return
@@ -29,10 +29,17 @@ export default function Map() {
     })
   }, [])
 
-  // Handle arrow clicks
-  function handleArrowClick(direction) {
-    alert(`You clicked arrow: ${direction}`)
-    // TODO: Fetch and show info for that direction (via AI)
+  // Handle direction arrow click
+  function handleArrowClick(direction, pinCoordinates) {
+    alert(`Clicked ${direction} for pin at ${pinCoordinates[0]}, ${pinCoordinates[1]}`)
+    // Future: Use coordinates + direction for AI-powered suggestions
+  }
+
+  // Handle center pin click to drop a new pin
+  function dropPinAtCenter() {
+    const center = map.current.getCenter()
+    const newPin = [center.lng, center.lat]
+    setDroppedPins([...droppedPins, newPin])
   }
 
   return (
@@ -41,28 +48,45 @@ export default function Map() {
         ref={mapContainer}
         className="absolute top-0 left-0 w-full h-full"
       />
+
+      {/* Map info (can hide later) */}
       <div
-        style={{
-          position: 'absolute',
-          top: '75px',
-          left: '20px',
-          background: 'rgba(255, 255, 255, 0.85)',
-          padding: '8px 12px',
-          borderRadius: '8px',
-          boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-          fontSize: '0.85rem',
-          zIndex: 10,
-        }}
+        className="absolute top-[75px] left-5 bg-white/85 px-3 py-2 rounded shadow-sm text-sm z-10"
       >
-        <div>📍 Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}</div>
+        📍 Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}
       </div>
 
-      {/* Arrow pin fixed in center */}
+      {/* Fixed Center Pin (Click to drop) */}
       <div
-        className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 select-none pointer-events-auto"
+        className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer select-none"
+        onClick={dropPinAtCenter}
       >
-        <ArrowPin onArrowClick={handleArrowClick} />
+        {/* Just the center 📍 */}
+        <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center text-white font-bold">
+          📍
+        </div>
       </div>
+
+      {/* Render dropped pins with arrows */}
+      {droppedPins.map((pin, index) => {
+        const [lng, lat] = pin
+        const point = map.current?.project([lng, lat])
+        if (!point) return null
+
+        return (
+          <div
+            key={index}
+            className="absolute z-20"
+            style={{
+              left: `${point.x}px`,
+              top: `${point.y}px`,
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
+            <ArrowPin onArrowClick={(dir) => handleArrowClick(dir, pin)} />
+          </div>
+        )
+      })}
     </>
   )
 }
