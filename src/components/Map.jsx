@@ -14,7 +14,6 @@ export default function Map() {
   const [hoveredPinIndex, setHoveredPinIndex] = useState(null)
   const [activePopup, setActivePopup] = useState(null)
 
-  // Initialize map and move listener to update lng/lat/zoom
   useEffect(() => {
     if (map.current) return
 
@@ -35,15 +34,14 @@ export default function Map() {
   function dropPinAtCenter() {
     const center = map.current.getCenter()
     const newPin = [center.lng, center.lat]
-    // Use functional update for state
-    setDroppedPins((prevPins) => [...prevPins, newPin])
+    setDroppedPins([...droppedPins, newPin])
   }
 
-  function handleArrowClick(direction, pinCoordinates) {
-    console.log('Arrow clicked:', direction, pinCoordinates)
+  function handleArrowClick(direction, pinCoordinates, screenPosition) {
     setActivePopup({
       direction,
       pin: pinCoordinates,
+      position: screenPosition,
     })
   }
 
@@ -105,7 +103,9 @@ export default function Map() {
               {hoveredPinIndex === index && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin
-                    onArrowClick={(dir) => handleArrowClick(dir, pin)}
+                    onArrowClick={(dir) =>
+                      handleArrowClick(dir, pin, { x: point.x, y: point.y })
+                    }
                   />
                 </div>
               )}
@@ -115,37 +115,31 @@ export default function Map() {
       })}
 
       {/* Popup UI near clicked arrow */}
-      {activePopup && (() => {
-        // Dynamically calculate popup screen position every render
-        const point = map.current?.project(activePopup.pin)
-        if (!point) return null
-
-        return (
-          <div
-            className="absolute bg-white/80 backdrop-blur-md rounded-xl shadow-md p-4 w-72 z-30 transition-all duration-300"
-            style={{
-              left: `${point.x}px`,
-              top: `${point.y}px`,
-              transform: 'translate(-50%, -120%)',
-            }}
-          >
-            <div className="font-semibold text-gray-800 mb-2">
-              AI Explorer – {activePopup.direction}
-            </div>
-            <p className="text-sm text-gray-700 mb-4">
-              AI-generated info about this area will go here.
-            </p>
-            <div className="flex flex-col gap-2">
-              <button className="border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white transition rounded-full px-4 py-1 text-sm">
-                Explore {activePopup.direction}
-              </button>
-              <button className="border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white transition rounded-full px-4 py-1 text-sm">
-                Connect to Another Marker
-              </button>
-            </div>
+      {activePopup && (
+        <div
+          className="absolute bg-white/80 backdrop-blur-md rounded-xl shadow-md p-4 w-72 z-30 transition-all duration-300"
+          style={{
+            left: `${activePopup.position.x}px`,
+            top: `${activePopup.position.y}px`,
+            transform: 'translate(-50%, -120%)', // this places above; we’ll refine this based on direction in a future step
+          }}
+        >
+          <div className="font-semibold text-gray-800 mb-2">
+            AI Explorer – {activePopup.direction}
           </div>
-        )
-      })()}
+          <p className="text-sm text-gray-700 mb-4">
+            AI-generated info about this area will go here.
+          </p>
+          <div className="flex flex-col gap-2">
+            <button className="border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white transition rounded-full px-4 py-1 text-sm">
+              Explore {activePopup.direction}
+            </button>
+            <button className="border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white transition rounded-full px-4 py-1 text-sm">
+              Connect to Another Marker
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 }
