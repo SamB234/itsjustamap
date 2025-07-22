@@ -82,23 +82,34 @@ export default function Map() {
               left: `${point.x}px`,
               top: `${point.y}px`,
               transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none', // let child elements handle interactions
             }}
-            onMouseEnter={() => setHoveredPinIndex(index)}
-            onMouseLeave={() => setHoveredPinIndex(null)}
           >
-            {/* Base 📍 pin */}
-            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md">
-              📍
-            </div>
+            <div
+              className="relative"
+              style={{ width: '80px', height: '80px' }}
+              onMouseEnter={() => setHoveredPinIndex(index)}
+              onMouseLeave={() => setHoveredPinIndex(null)}
+            >
+              {/* Main 📍 pin */}
+              <div
+                className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-10"
+                style={{ pointerEvents: 'auto' }}
+              >
+                📍
+              </div>
 
-            {/* Show arrows only on hover */}
-            {hoveredPinIndex === index && (
-              <ArrowPin
-                onArrowClick={(dir) =>
-                  handleArrowClick(dir, pin, { x: point.x, y: point.y })
-                }
-              />
-            )}
+              {/* Arrows on hover */}
+              {hoveredPinIndex === index && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
+                  <ArrowPin
+                    onArrowClick={(dir) =>
+                      handleArrowClick(dir, pin, { x: point.x, y: point.y })
+                    }
+                  />
+                </div>
+              )}
+            </div>
           </div>
         )
       })}
@@ -110,7 +121,7 @@ export default function Map() {
           style={{
             left: `${activePopup.position.x}px`,
             top: `${activePopup.position.y}px`,
-            transform: 'translate(-50%, -120%)',
+            transform: 'translate(-50%, -120%)', // this places above; we’ll refine this based on direction in a future step
           }}
         >
           <div className="font-semibold text-gray-800 mb-2">
