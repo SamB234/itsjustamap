@@ -24,31 +24,51 @@ export default function Map() {
       zoom: zoom,
     })
 
-    map.current.on('move', () => {
-      setLng(map.current.getCenter().lng.toFixed(4))
-      setLat(map.current.getCenter().lat.toFixed(4))
-      setZoom(map.current.getZoom().toFixed(2))
+    map.current.on('load', () => {
+      // Add placeholder image to silence "rectangle-yellow-5" error
+      if (!map.current.hasImage('rectangle-yellow-5')) {
+        const size = 1
+        const canvas = document.createElement('canvas')
+        canvas.width = size
+        canvas.height = size
+        const ctx = canvas.getContext('2d')
+        ctx.clearRect(0, 0, size, size)
+        map.current.addImage('rectangle-yellow-5', canvas)
+      }
     })
-  }, [])
+
+    map.current.on('move', () => {
+      const center = map.current.getCenter()
+      setLng(center.lng.toFixed(4))
+      setLat(center.lat.toFixed(4))
+      setZoom(map.current.getZoom().toFixed(2))
+
+      // Update popup screen position on map move
+      if (activePopup) {
+        const newScreenPos = map.current.project(activePopup.pin)
+        setActivePopup((prev) => ({ ...prev, position: newScreenPos }))
+      }
+    })
+  }, [activePopup])
 
   function dropPinAtCenter() {
-    if (!map.current) return  // <-- Guard added here
+    if (!map.current) return
     const center = map.current.getCenter()
     const newPin = [center.lng, center.lat]
     setDroppedPins([...droppedPins, newPin])
   }
 
-  function handleArrowClick(direction, pinCoordinates, screenPosition) {
+  function handleArrowClick(direction, pinCoordinates) {
+    const screenPos = map.current.project(pinCoordinates)
     setActivePopup({
       direction,
       pin: pinCoordinates,
-      position: screenPosition,
+      position: screenPos,
     })
   }
 
-  // Dismiss popup on click outside popup area
+  // Dismiss popup when clicking outside it
   function handleClickAway(e) {
-    // If click is outside popup div, close popup
     if (!e.target.closest('.active-popup')) {
       setActivePopup(null)
     }
@@ -100,7 +120,7 @@ export default function Map() {
               left: `${point.x}px`,
               top: `${point.y}px`,
               transform: 'translate(-50%, -50%)',
-              pointerEvents: 'none', // let child elements handle interactions
+              pointerEvents: 'none',
             }}
           >
             <div
@@ -109,7 +129,6 @@ export default function Map() {
               onMouseEnter={() => setHoveredPinIndex(index)}
               onMouseLeave={() => setHoveredPinIndex(null)}
             >
-              {/* Main 📍 pin */}
               <div
                 className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-10"
                 style={{ pointerEvents: 'auto' }}
@@ -117,12 +136,11 @@ export default function Map() {
                 📍
               </div>
 
-              {/* Arrows on hover */}
               {hoveredPinIndex === index && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin
                     onArrowClick={(dir) =>
-                      handleArrowClick(dir, pin, { x: point.x, y: point.y })
+                      handleArrowClick(dir, pin)
                     }
                   />
                 </div>
