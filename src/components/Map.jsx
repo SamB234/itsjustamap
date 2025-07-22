@@ -37,13 +37,17 @@ export default function Map() {
     setDroppedPins([...droppedPins, newPin])
   }
 
-  function handleArrowClick(direction, pinCoordinates, screenPosition) {
+  function handleArrowClick(direction, pinCoordinates) {
     setActivePopup({
       direction,
       pin: pinCoordinates,
-      position: screenPosition,
     })
   }
+
+  // Calculate popup screen position dynamically every render
+  const popupPosition = activePopup && map.current
+    ? map.current.project(activePopup.pin)
+    : null
 
   return (
     <>
@@ -82,7 +86,7 @@ export default function Map() {
               left: `${point.x}px`,
               top: `${point.y}px`,
               transform: 'translate(-50%, -50%)',
-              pointerEvents: 'none', // let child elements handle interactions
+              pointerEvents: 'none',
             }}
           >
             <div
@@ -103,9 +107,7 @@ export default function Map() {
               {hoveredPinIndex === index && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin
-                    onArrowClick={(dir) =>
-                      handleArrowClick(dir, pin, { x: point.x, y: point.y })
-                    }
+                    onArrowClick={(dir) => handleArrowClick(dir, pin)}
                   />
                 </div>
               )}
@@ -115,13 +117,13 @@ export default function Map() {
       })}
 
       {/* Popup UI near clicked arrow */}
-      {activePopup && (
+      {activePopup && popupPosition && (
         <div
           className="absolute bg-white/80 backdrop-blur-md rounded-xl shadow-md p-4 w-72 z-30 transition-all duration-300"
           style={{
-            left: `${activePopup.position.x}px`,
-            top: `${activePopup.position.y}px`,
-            transform: 'translate(-50%, -120%)', // this places above; we’ll refine this based on direction in a future step
+            left: `${popupPosition.x}px`,
+            top: `${popupPosition.y}px`,
+            transform: 'translate(-50%, -120%)',
           }}
         >
           <div className="font-semibold text-gray-800 mb-2">
