@@ -14,6 +14,7 @@ export default function Map() {
   const [hoveredPinIndex, setHoveredPinIndex] = useState(null)
   const [activePopup, setActivePopup] = useState(null)
 
+  // Initialize map and move listener to update lng/lat/zoom
   useEffect(() => {
     if (map.current) return
 
@@ -24,30 +25,6 @@ export default function Map() {
       zoom: zoom,
     })
 
-    map.current.on('style.load', () => {
-      const width = 20
-      const height = 20
-      const data = new Uint8Array(width * height * 4)
-      for (let i = 0; i < data.length; i += 4) {
-        data[i] = 255      // R
-        data[i + 1] = 255  // G
-        data[i + 2] = 0    // B
-        data[i + 3] = 255  // A
-      }
-
-      if (!map.current.hasImage('rectangle-yellow-5')) {
-        try {
-          map.current.addImage(
-            'rectangle-yellow-5',
-            { width, height, data },
-            { sdf: false }
-          )
-        } catch (e) {
-          console.warn('Image registration error:', e)
-        }
-      }
-    })
-
     map.current.on('move', () => {
       setLng(map.current.getCenter().lng.toFixed(4))
       setLat(map.current.getCenter().lat.toFixed(4))
@@ -56,62 +33,34 @@ export default function Map() {
   }, [])
 
   function dropPinAtCenter() {
-    if (!map.current) return
     const center = map.current.getCenter()
     const newPin = [center.lng, center.lat]
-    setDroppedPins((prev) => [...prev, newPin])
+    // Use functional update for state
+    setDroppedPins((prevPins) => [...prevPins, newPin])
   }
 
-  function handleArrowClick(direction, pinCoordinates, screenPosition) {
+  function handleArrowClick(direction, pinCoordinates) {
+    console.log('Arrow clicked:', direction, pinCoordinates)
     setActivePopup({
       direction,
       pin: pinCoordinates,
-      position: screenPosition,
     })
   }
 
-  function handleClickAway(e) {
-    if (!e.target.closest('.active-popup')) {
-      setActivePopup(null)
-    }
-  }
-
-  useEffect(() => {
-    if (activePopup) {
-      window.addEventListener('click', handleClickAway)
-    } else {
-      window.removeEventListener('click', handleClickAway)
-    }
-    return () => window.removeEventListener('click', handleClickAway)
-  }, [activePopup])
-
-  // Keep popup pinned to marker
-  useEffect(() => {
-    if (!map.current || !activePopup?.pin) return
-
-    const updatePopupPosition = () => {
-      const point = map.current.project(activePopup.pin)
-      setActivePopup((prev) =>
-        prev ? { ...prev, position: point } : null
-      )
-    }
-
-    updatePopupPosition()
-    map.current.on('move', updatePopupPosition)
-
-    return () => {
-      map.current.off('move', updatePopupPosition)
-    }
-  }, [activePopup?.pin])
-
   return (
     <>
-      <div ref={mapContainer} className="absolute top-0 left-0 w-full h-full" />
+      {/* Map container */}
+      <div
+        ref={mapContainer}
+        className="absolute top-0 left-0 w-full h-full"
+      />
 
+      {/* Info panel */}
       <div className="absolute top-[75px] left-5 bg-white/85 px-3 py-2 rounded shadow-sm text-sm z-10">
         📍 Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}
       </div>
 
+      {/* Fixed center pin to drop */}
       <div
         className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer select-none"
         onClick={dropPinAtCenter}
@@ -121,6 +70,7 @@ export default function Map() {
         </div>
       </div>
 
+      {/* Render dropped pins */}
       {droppedPins.map((pin, index) => {
         const [lng, lat] = pin
         const point = map.current?.project([lng, lat])
@@ -134,7 +84,7 @@ export default function Map() {
               left: `${point.x}px`,
               top: `${point.y}px`,
               transform: 'translate(-50%, -50%)',
-              pointerEvents: 'none',
+              pointerEvents: 'none', // let child elements handle interactions
             }}
           >
             <div
@@ -143,6 +93,7 @@ export default function Map() {
               onMouseEnter={() => setHoveredPinIndex(index)}
               onMouseLeave={() => setHoveredPinIndex(null)}
             >
+              {/* Main 📍 pin */}
               <div
                 className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-10"
                 style={{ pointerEvents: 'auto' }}
@@ -150,12 +101,11 @@ export default function Map() {
                 📍
               </div>
 
+              {/* Arrows on hover */}
               {hoveredPinIndex === index && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin
-                    onArrowClick={(dir) =>
-                      handleArrowClick(dir, pin, { x: point.x, y: point.y })
-                    }
+                    onArrowClick={(dir) => handleArrowClick(dir, pin)}
                   />
                 </div>
               )}
@@ -164,40 +114,38 @@ export default function Map() {
         )
       })}
 
-      {activePopup && activePopup.position && (
-        <div
-          className="absolute bg-white/80 backdrop-blur-md rounded-xl shadow-md p-4 w-72 z-30 transition-all duration-300 active-popup"
-          style={{
-            left: `${activePopup.position.x}px`,
-            top: `${activePopup.position.y}px`,
-            transform: 'translate(-50%, -120%)',
-          }}
-        >
-          <div className="flex justify-between items-center mb-2">
-            <div className="font-semibold text-gray-800">
+      {/* Popup UI near clicked arrow */}
+      {activePopup && (() => {
+        // Dynamically calculate popup screen position every render
+        const point = map.current?.project(activePopup.pin)
+        if (!point) return null
+
+        return (
+          <div
+            className="absolute bg-white/80 backdrop-blur-md rounded-xl shadow-md p-4 w-72 z-30 transition-all duration-300"
+            style={{
+              left: `${point.x}px`,
+              top: `${point.y}px`,
+              transform: 'translate(-50%, -120%)',
+            }}
+          >
+            <div className="font-semibold text-gray-800 mb-2">
               AI Explorer – {activePopup.direction}
             </div>
-            <button
-              onClick={() => setActivePopup(null)}
-              aria-label="Close popup"
-              className="text-gray-600 hover:text-gray-900 font-bold text-xl leading-none"
-            >
-              &times;
-            </button>
+            <p className="text-sm text-gray-700 mb-4">
+              AI-generated info about this area will go here.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button className="border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white transition rounded-full px-4 py-1 text-sm">
+                Explore {activePopup.direction}
+              </button>
+              <button className="border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white transition rounded-full px-4 py-1 text-sm">
+                Connect to Another Marker
+              </button>
+            </div>
           </div>
-          <p className="text-sm text-gray-700 mb-4">
-            AI-generated info about this area will go here.
-          </p>
-          <div className="flex flex-col gap-2">
-            <button className="border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white transition rounded-full px-4 py-1 text-sm">
-              Explore {activePopup.direction}
-            </button>
-            <button className="border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white transition rounded-full px-4 py-1 text-sm">
-              Connect to Another Marker
-            </button>
-          </div>
-        </div>
-      )}
+        )
+      })()}
     </>
   )
 }
