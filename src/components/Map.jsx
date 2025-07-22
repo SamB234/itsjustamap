@@ -13,7 +13,9 @@ export default function Map() {
   const [droppedPins, setDroppedPins] = useState([])
   const [hoveredPinIndex, setHoveredPinIndex] = useState(null)
   const [activePopup, setActivePopup] = useState(null)
+  const [popupScreenCoords, setPopupScreenCoords] = useState(null)
 
+  // Initialize map
   useEffect(() => {
     if (map.current) return
 
@@ -28,21 +30,43 @@ export default function Map() {
       setLng(map.current.getCenter().lng.toFixed(4))
       setLat(map.current.getCenter().lat.toFixed(4))
       setZoom(map.current.getZoom().toFixed(2))
-    })
-  }, [])
 
+      // Keep popup fixed to same marker if map moves
+      if (activePopup) {
+        const screenCoords = map.current.project(activePopup.pin)
+        setPopupScreenCoords(screenCoords)
+      }
+    })
+
+    // Dismiss popup if clicking anywhere on the map (not on a pin)
+    map.current.on('click', (e) => {
+      // Don't dismiss if clicking the center pin dropper
+      const center = map.current.getCenter()
+      const distance = Math.sqrt(
+        Math.pow(e.lngLat.lng - center.lng, 2) +
+        Math.pow(e.lngLat.lat - center.lat, 2)
+      )
+      if (distance < 0.001) return
+
+      setActivePopup(null)
+    })
+  }, [activePopup])
+
+  // Drop pin in center
   function dropPinAtCenter() {
     const center = map.current.getCenter()
     const newPin = [center.lng, center.lat]
     setDroppedPins([...droppedPins, newPin])
   }
 
-  function handleArrowClick(direction, pinCoordinates, screenPosition) {
+  // Open popup for given pin and arrow direction
+  function handleArrowClick(direction, pinCoordinates) {
+    const screenCoords = map.current.project(pinCoordinates)
     setActivePopup({
       direction,
       pin: pinCoordinates,
-      position: screenPosition,
     })
+    setPopupScreenCoords(screenCoords)
   }
 
   return (
@@ -68,7 +92,7 @@ export default function Map() {
         </div>
       </div>
 
-      {/* Render dropped pins */}
+      {/* Dropped pins */}
       {droppedPins.map((pin, index) => {
         const [lng, lat] = pin
         const point = map.current?.project([lng, lat])
@@ -82,48 +106,43 @@ export default function Map() {
               left: `${point.x}px`,
               top: `${point.y}px`,
               transform: 'translate(-50%, -50%)',
-              pointerEvents: 'none', // let child elements handle interactions
             }}
+            onMouseEnter={() => setHoveredPinIndex(index)}
+            onMouseLeave={() => setHoveredPinIndex(null)}
           >
-            <div
-              className="relative"
-              style={{ width: '80px', height: '80px' }}
-              onMouseEnter={() => setHoveredPinIndex(index)}
-              onMouseLeave={() => setHoveredPinIndex(null)}
-            >
-              {/* Main 📍 pin */}
-              <div
-                className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-10"
-                style={{ pointerEvents: 'auto' }}
-              >
-                📍
-              </div>
-
-              {/* Arrows on hover */}
-              {hoveredPinIndex === index && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
-                  <ArrowPin
-                    onArrowClick={(dir) =>
-                      handleArrowClick(dir, pin, { x: point.x, y: point.y })
-                    }
-                  />
-                </div>
-              )}
+            {/* 📍 Pin */}
+            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md">
+              📍
             </div>
+
+            {/* Arrows only on hover */}
+            {hoveredPinIndex === index && (
+              <ArrowPin
+                onArrowClick={(dir) => handleArrowClick(dir, pin)}
+              />
+            )}
           </div>
         )
       })}
 
-      {/* Popup UI near clicked arrow */}
-      {activePopup && (
+      {/* Popup */}
+      {activePopup && popupScreenCoords && (
         <div
-          className="absolute bg-white/80 backdrop-blur-md rounded-xl shadow-md p-4 w-72 z-30 transition-all duration-300"
+          className="absolute bg-white/90 backdrop-blur-lg rounded-xl shadow-lg p-4 w-72 z-30 transition-all duration-300"
           style={{
-            left: `${activePopup.position.x}px`,
-            top: `${activePopup.position.y}px`,
-            transform: 'translate(-50%, -120%)', // this places above; we’ll refine this based on direction in a future step
+            left: `${popupScreenCoords.x}px`,
+            top: `${popupScreenCoords.y}px`,
+            transform: 'translate(-50%, -120%)',
           }}
         >
+          {/* Dismiss X */}
+          <button
+            onClick={() => setActivePopup(null)}
+            className="absolute top-1 right-2 text-gray-500 hover:text-red-500 text-lg font-bold"
+          >
+            ×
+          </button>
+
           <div className="font-semibold text-gray-800 mb-2">
             AI Explorer – {activePopup.direction}
           </div>
