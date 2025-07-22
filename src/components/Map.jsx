@@ -42,7 +42,7 @@ export default function Map() {
           width,
           height,
           data,
-        })
+        },{ sdf: false })
       }
     })
 
