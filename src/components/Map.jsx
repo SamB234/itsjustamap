@@ -14,22 +14,49 @@ export default function Map() {
   const [hoveredPinIndex, setHoveredPinIndex] = useState(null)
   const [activePopup, setActivePopup] = useState(null)
 
+  // Update popup position on map move
   useEffect(() => {
-    if (map.current) return
+    if (!map.current) return
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v11',
-      center: [lng, lat],
-      zoom: zoom,
-    })
+    function updatePopupPosition() {
+      if (activePopup) {
+        const point = map.current.project(activePopup.pin)
+        if (point) {
+          setActivePopup((prev) => ({
+            ...prev,
+            position: { x: point.x, y: point.y },
+          }))
+        }
+      }
+    }
 
     map.current.on('move', () => {
       setLng(map.current.getCenter().lng.toFixed(4))
       setLat(map.current.getCenter().lat.toFixed(4))
       setZoom(map.current.getZoom().toFixed(2))
+      updatePopupPosition()
     })
-  }, [])
+
+    // Also update on resize
+    window.addEventListener('resize', updatePopupPosition)
+    return () => window.removeEventListener('resize', updatePopupPosition)
+  }, [activePopup])
+
+  // Click-away to close popup
+  useEffect(() => {
+    function handleClickOutside(event) {
+      const popupElement = document.getElementById('active-popup')
+      if (popupElement && !popupElement.contains(event.target)) {
+        setActivePopup(null)
+      }
+    }
+    if (activePopup) {
+      document.addEventListener('mousedown', handleClickOutside)
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [activePopup])
 
   function dropPinAtCenter() {
     const center = map.current.getCenter()
@@ -37,11 +64,13 @@ export default function Map() {
     setDroppedPins([...droppedPins, newPin])
   }
 
-  function handleArrowClick(direction, pinCoordinates, screenPosition) {
+  function handleArrowClick(direction, pinCoordinates) {
+    // Project pin to screen coords for popup positioning
+    const point = map.current.project(pinCoordinates)
     setActivePopup({
       direction,
       pin: pinCoordinates,
-      position: screenPosition,
+      position: { x: point.x, y: point.y },
     })
   }
 
@@ -103,9 +132,7 @@ export default function Map() {
               {hoveredPinIndex === index && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin
-                    onArrowClick={(dir) =>
-                      handleArrowClick(dir, pin, { x: point.x, y: point.y })
-                    }
+                    onArrowClick={(dir) => handleArrowClick(dir, pin)}
                   />
                 </div>
               )}
@@ -117,13 +144,23 @@ export default function Map() {
       {/* Popup UI near clicked arrow */}
       {activePopup && (
         <div
+          id="active-popup"
           className="absolute bg-white/80 backdrop-blur-md rounded-xl shadow-md p-4 w-72 z-30 transition-all duration-300"
           style={{
             left: `${activePopup.position.x}px`,
             top: `${activePopup.position.y}px`,
-            transform: 'translate(-50%, -120%)', // this places above; we’ll refine this based on direction in a future step
+            transform: 'translate(-50%, -120%)',
           }}
         >
+          {/* X dismiss button */}
+          <button
+            onClick={() => setActivePopup(null)}
+            className="absolute top-2 right-3 text-gray-600 hover:text-gray-900 font-bold"
+            aria-label="Close popup"
+          >
+            ×
+          </button>
+
           <div className="font-semibold text-gray-800 mb-2">
             AI Explorer – {activePopup.direction}
           </div>
