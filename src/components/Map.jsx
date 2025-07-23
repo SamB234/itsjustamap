@@ -5,6 +5,13 @@ import ArrowPin from './ArrowPin'
 mapboxgl.accessToken =
   'pk.eyJ1Ijoic2FtYjIzNCIsImEiOiJjbWRkZ25xcmcwNHhvMmxxdGU3c2J0eTZnIn0.j5NEdvNhU_eZ1tirQpKEAA'
 
+const directionMap = {
+  N: 'North',
+  S: 'South',
+  E: 'East',
+  W: 'West',
+}
+
 export default function Map() {
   const mapContainer = useRef(null)
   const map = useRef(null)
@@ -17,7 +24,6 @@ export default function Map() {
   const [activePopupData, setActivePopupData] = useState(null)
   const [popupPos, setPopupPos] = useState({ x: 0, y: 0 })
 
-  // Initialize map
   useEffect(() => {
     if (map.current) return
 
@@ -35,7 +41,6 @@ export default function Map() {
     })
   }, [])
 
-  // Update popup screen position
   useEffect(() => {
     if (!map.current || !activePopupData) {
       setPopupPos(null)
@@ -61,6 +66,18 @@ export default function Map() {
   }
 
   function handleClosePopup() {
+    setActivePopupData(null)
+  }
+
+  function handleRemoveMarker() {
+    if (!activePopupData) return
+    const { lng, lat } = activePopupData
+
+    const filtered = droppedPins.filter(
+      ([pinLng, pinLat]) => pinLng !== lng || pinLat !== lat
+    )
+
+    setDroppedPins(filtered)
     setActivePopupData(null)
   }
 
@@ -112,7 +129,11 @@ export default function Map() {
               </div>
               {hoveredPinIndex === index && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
-                  <ArrowPin onArrowClick={(dir) => handleArrowClick(dir, pin)} />
+                  <ArrowPin
+                    onArrowClick={(dir) =>
+                      handleArrowClick(directionMap[dir] || dir, pin)
+                    }
+                  />
                 </div>
               )}
             </div>
@@ -153,10 +174,12 @@ export default function Map() {
           <p className="mb-4">
             AI-generated info about this area will go here.
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2">
             <button
               className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
-              onClick={() => alert(`Explore ${activePopupData.direction}`)}
+              onClick={() =>
+                alert(`Explore ${activePopupData.direction}`)
+              }
             >
               Explore {activePopupData.direction}
             </button>
@@ -165,6 +188,12 @@ export default function Map() {
               onClick={() => alert('Connect to Another Marker')}
             >
               Connect to Another Marker
+            </button>
+            <button
+              className="px-3 py-1 border border-red-500 text-red-600 rounded-full hover:bg-red-50 transition"
+              onClick={handleRemoveMarker}
+            >
+              Remove Marker
             </button>
           </div>
         </div>
