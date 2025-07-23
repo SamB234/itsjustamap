@@ -156,7 +156,7 @@ export default function Map() {
           style={{
             left: popupPos.x,
             top: popupPos.y,
-            transform: 'translate(-50%, -100%)', // Higher offset
+            transform: 'translate(-50%, -130%)', // Higher offset
             background: 'rgba(240, 240, 240, 0.9)',
             backdropFilter: 'blur(8px)',
             borderRadius: '12px',
