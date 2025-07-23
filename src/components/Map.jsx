@@ -57,11 +57,44 @@ export default function Map() {
     setDroppedPins([...droppedPins, [center.lng, center.lat]])
   }
 
-  function handleArrowClick(direction, pinCoordinates) {
+  async function fetchPlaceName(lng, lat) {
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}`
+      )
+      const data = await response.json()
+      if (data?.features?.length > 0 && data.features[0].place_name) {
+        return data.features[0].place_name
+      } else {
+        return 'Unknown Location'
+      }
+    } catch (error) {
+      console.error('Reverse geocoding error:', error)
+      return 'Error fetching location'
+    }
+  }
+
+  async function handlePinClick(pinCoordinates) {
+    const [lng, lat] = pinCoordinates
+    const placeName = await fetchPlaceName(lng, lat)
+
     setActivePopupData({
-      lng: pinCoordinates[0],
-      lat: pinCoordinates[1],
+      lng,
+      lat,
+      direction: 'Overview',
+      placeName,
+    })
+  }
+
+  async function handleArrowClick(direction, pinCoordinates) {
+    const [lng, lat] = pinCoordinates
+    const placeName = await fetchPlaceName(lng, lat)
+
+    setActivePopupData({
+      lng,
+      lat,
       direction,
+      placeName,
     })
   }
 
@@ -79,14 +112,6 @@ export default function Map() {
 
     setDroppedPins(filtered)
     setActivePopupData(null)
-  }
-
-  function handlePinClick(pinCoordinates) {
-    setActivePopupData({
-      lng: pinCoordinates[0],
-      lat: pinCoordinates[1],
-      direction: 'Overview',
-    })
   }
 
   return (
@@ -152,12 +177,12 @@ export default function Map() {
       {/* Popup */}
       {activePopupData && popupPos && (
         <div
-          className="absolute z-10 max-w-xs p-4"
+          className="absolute z-20 max-w-xs p-4"
           style={{
             left: popupPos.x,
             top: popupPos.y,
-            transform: 'translate(-50%, -130%)', // Higher offset
-            background: 'rgba(240, 240, 240, 0.9)',
+            transform: 'translate(-50%, -130%)',
+            background: 'rgba(240, 240, 240, 0.95)',
             backdropFilter: 'blur(8px)',
             borderRadius: '12px',
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
@@ -168,9 +193,7 @@ export default function Map() {
         >
           <div className="flex justify-between items-center mb-2">
             <strong className="text-lg">
-              {activePopupData.direction === 'Overview'
-                ? 'Discover This Area'
-                : `AI Explorer – ${activePopupData.direction}`}
+              {activePopupData.placeName || 'Loading...'}
             </strong>
             <button
               onClick={handleClosePopup}
@@ -180,6 +203,11 @@ export default function Map() {
             >
               ×
             </button>
+          </div>
+          <div className="text-sm text-gray-500 mb-2">
+            {activePopupData.direction === 'Overview'
+              ? 'Discover this area'
+              : `Explore toward the ${activePopupData.direction}`}
           </div>
           <p className="mb-4">
             {activePopupData.direction === 'Overview'
