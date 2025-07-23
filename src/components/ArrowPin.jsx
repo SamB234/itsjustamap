@@ -1,19 +1,20 @@
-import React from 'react'
+import React from 'react';
 
 export default function ArrowPin({ onArrowClick }) {
-  // onArrowClick(direction, event) - callback when arrow clicked, now passes event
+  // onArrowClick(directionKey) - callback when arrow clicked, passes 'N', 'S', 'E', 'W'
 
-  const arrowClass = "w-6 h-6 text-blue-700 hover:text-blue-900 cursor-pointer transition"
+  const arrowClass =
+    'w-6 h-6 text-blue-700 hover:text-blue-900 cursor-pointer transition';
 
-  // Wrapper click handler to pass the event
-  function handleClick(direction, e) {
-    e.stopPropagation()
-    onArrowClick(direction, e)
+  // Wrapper click handler to pass the direction key
+  function handleClick(directionKey, e) {
+    e.stopPropagation(); // Prevent map click from propagating
+    onArrowClick(directionKey);
   }
 
   return (
     <div className="relative flex flex-col items-center">
-      {/* Central Pin */}
+      {/* Central Pin (visual only, actual pin handled by Map.jsx) */}
       <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center text-white font-bold select-none cursor-pointer">
         📍
       </div>
@@ -87,5 +88,5 @@ export default function ArrowPin({ onArrowClick }) {
         </svg>
       </div>
     </div>
-  )
+  );
 }
