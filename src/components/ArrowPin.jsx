@@ -1,24 +1,21 @@
 import React from 'react'
 
 export default function ArrowPin({ onArrowClick }) {
-  // onArrowClick(direction, event) - callback when arrow clicked, now passes event
+  const arrowClass =
+    'w-6 h-6 text-blue-700 hover:text-blue-900 cursor-pointer transition pointer-events-auto'
 
-  const arrowClass = "w-6 h-6 text-blue-700 hover:text-blue-900 cursor-pointer transition"
-
-  // Wrapper click handler to pass the event
   function handleClick(direction, e) {
     e.stopPropagation()
     onArrowClick(direction, e)
   }
 
   return (
-    <div className="relative flex flex-col items-center">
-      {/* Central Pin */}
-      <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center text-white font-bold select-none cursor-pointer">
+    <div className="relative flex flex-col items-center pointer-events-none">
+      {/* Central Pin (still clickable) */}
+      <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center text-white font-bold select-none cursor-pointer pointer-events-auto">
         📍
       </div>
 
-      {/* Arrows */}
       {/* North */}
       <div
         onClick={(e) => handleClick('N', e)}
