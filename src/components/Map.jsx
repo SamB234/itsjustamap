@@ -132,7 +132,7 @@ export default function Map() {
             onClick={() => handlePinClick(pin)}
           >
             <div className="relative w-20 h-20 pointer-events-auto">
-              <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
+              <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
                 📍
               </div>
               {hoveredPinIndex === index && (
