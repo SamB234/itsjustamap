@@ -81,9 +81,16 @@ export default function Map() {
     setActivePopupData(null)
   }
 
+  function handlePinClick(pinCoordinates) {
+    setActivePopupData({
+      lng: pinCoordinates[0],
+      lat: pinCoordinates[1],
+      direction: 'Overview',
+    })
+  }
+
   return (
     <>
-      {/* Map container */}
       <div ref={mapContainer} className="absolute top-0 left-0 w-full h-full" />
 
       {/* Info panel */}
@@ -122,9 +129,10 @@ export default function Map() {
             }}
             onMouseEnter={() => setHoveredPinIndex(index)}
             onMouseLeave={() => setHoveredPinIndex(null)}
+            onClick={() => handlePinClick(pin)}
           >
             <div className="relative w-20 h-20 pointer-events-auto">
-              <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
+              <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
                 📍
               </div>
               {hoveredPinIndex === index && (
@@ -141,15 +149,15 @@ export default function Map() {
         )
       })}
 
-      {/* React popup */}
+      {/* Popup */}
       {activePopupData && popupPos && (
         <div
           className="absolute z-10 max-w-xs p-4"
           style={{
             left: popupPos.x,
             top: popupPos.y,
-            transform: 'translate(-50%, -110%)',
-            background: 'rgba(240, 240, 240, 0.85)',
+            transform: 'translate(-50%, -150%)', // Higher offset
+            background: 'rgba(240, 240, 240, 0.9)',
             backdropFilter: 'blur(8px)',
             borderRadius: '12px',
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
@@ -160,7 +168,9 @@ export default function Map() {
         >
           <div className="flex justify-between items-center mb-2">
             <strong className="text-lg">
-              AI Explorer – {activePopupData.direction}
+              {activePopupData.direction === 'Overview'
+                ? 'Discover This Area'
+                : `AI Explorer – ${activePopupData.direction}`}
             </strong>
             <button
               onClick={handleClosePopup}
@@ -172,17 +182,21 @@ export default function Map() {
             </button>
           </div>
           <p className="mb-4">
-            AI-generated info about this area will go here.
+            {activePopupData.direction === 'Overview'
+              ? 'AI-generated overview of this area will appear here.'
+              : 'AI-generated info about this direction will go here.'}
           </p>
           <div className="flex flex-col gap-2">
-            <button
-              className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
-              onClick={() =>
-                alert(`Explore ${activePopupData.direction}`)
-              }
-            >
-              Explore {activePopupData.direction}
-            </button>
+            {activePopupData.direction !== 'Overview' && (
+              <button
+                className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
+                onClick={() =>
+                  alert(`Explore ${activePopupData.direction}`)
+                }
+              >
+                Explore {activePopupData.direction}
+              </button>
+            )}
             <button
               className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
               onClick={() => alert('Connect to Another Marker')}
