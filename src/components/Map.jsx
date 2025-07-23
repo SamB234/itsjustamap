@@ -14,10 +14,10 @@ export default function Map() {
   const [zoom, setZoom] = useState(9)
   const [droppedPins, setDroppedPins] = useState([])
   const [hoveredPinIndex, setHoveredPinIndex] = useState(null)
-  const [activePopupData, setActivePopupData] = useState(null) // { lng, lat, direction }
-  const [popupPos, setPopupPos] = useState({ x: 0, y: 0 }) // screen pixel position of popup
+  const [activePopupData, setActivePopupData] = useState(null)
+  const [popupPos, setPopupPos] = useState({ x: 0, y: 0 })
 
-  // Initialize map once
+  // Initialize map
   useEffect(() => {
     if (map.current) return
 
@@ -35,7 +35,7 @@ export default function Map() {
     })
   }, [])
 
-  // Update popup screen position whenever activePopupData or map changes
+  // Update popup screen position
   useEffect(() => {
     if (!map.current || !activePopupData) {
       setPopupPos(null)
@@ -46,14 +46,12 @@ export default function Map() {
     setPopupPos({ x: point.x, y: point.y })
   }, [activePopupData, lng, lat, zoom])
 
-  // Drop pin at center of map
   function dropPinAtCenter() {
     if (!map.current) return
     const center = map.current.getCenter()
     setDroppedPins([...droppedPins, [center.lng, center.lat]])
   }
 
-  // Handle arrow click on dropped pin
   function handleArrowClick(direction, pinCoordinates) {
     setActivePopupData({
       lng: pinCoordinates[0],
@@ -62,7 +60,6 @@ export default function Map() {
     })
   }
 
-  // Close popup when clicking outside popup or on close button
   function handleClosePopup() {
     setActivePopupData(null)
   }
@@ -77,7 +74,7 @@ export default function Map() {
         📍 Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}
       </div>
 
-      {/* Fixed center pin to drop */}
+      {/* Fixed center pin */}
       <div
         className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer select-none"
         onClick={dropPinAtCenter}
@@ -87,12 +84,10 @@ export default function Map() {
         </div>
       </div>
 
-      {/* Render dropped pins manually positioned */}
+      {/* Render dropped pins */}
       {droppedPins.map((pin, index) => {
         const [pinLng, pinLat] = pin
-
         if (!map.current) return null
-
         const point = map.current.project([pinLng, pinLat])
 
         return (
@@ -112,12 +107,9 @@ export default function Map() {
             onMouseLeave={() => setHoveredPinIndex(null)}
           >
             <div className="relative w-20 h-20 pointer-events-auto">
-              {/* Main pin */}
               <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-10">
                 📍
               </div>
-
-              {/* Show arrows only when hovered */}
               {hoveredPinIndex === index && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin onArrowClick={(dir) => handleArrowClick(dir, pin)} />
@@ -128,22 +120,22 @@ export default function Map() {
         )
       })}
 
-      {/* React Popup */}
+      {/* React popup */}
       {activePopupData && popupPos && (
         <div
           className="absolute z-50 max-w-xs p-4"
           style={{
             left: popupPos.x,
             top: popupPos.y,
-            transform: 'translate(-50%, -110%)', // above the pin
-            background: 'rgba(240, 240, 240, 0.85)', // light grey transparent
+            transform: 'translate(-50%, -110%)',
+            background: 'rgba(240, 240, 240, 0.85)',
             backdropFilter: 'blur(8px)',
             borderRadius: '12px',
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             color: '#111',
             fontFamily: 'system-ui, sans-serif',
           }}
-          onClick={(e) => e.stopPropagation()} // Prevent map click from closing popup when clicking inside popup
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center mb-2">
             <strong className="text-lg">
@@ -176,15 +168,6 @@ export default function Map() {
             </button>
           </div>
         </div>
-      )}
-
-      {/* Close popup if clicking anywhere on map container outside pins/popups */}
-      {activePopupData && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={handleClosePopup}
-          aria-hidden="true"
-        />
       )}
     </>
   )
