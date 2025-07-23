@@ -70,13 +70,13 @@ export default function Map() {
       <div ref={mapContainer} className="absolute top-0 left-0 w-full h-full" />
 
       {/* Info panel */}
-      <div className="absolute top-[75px] left-5 bg-white/85 px-3 py-2 rounded shadow-sm text-sm z-10">
+      <div className="absolute top-[75px] left-5 bg-white/85 px-3 py-2 rounded shadow-sm text-sm z-30">
         📍 Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}
       </div>
 
       {/* Fixed center pin */}
       <div
-        className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer select-none"
+        className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-5 cursor-pointer select-none"
         onClick={dropPinAtCenter}
       >
         <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center text-white font-bold">
@@ -101,13 +101,13 @@ export default function Map() {
               width: 80,
               height: 80,
               cursor: 'pointer',
-              zIndex: 1000,
+              zIndex: 5,
             }}
             onMouseEnter={() => setHoveredPinIndex(index)}
             onMouseLeave={() => setHoveredPinIndex(null)}
           >
             <div className="relative w-20 h-20 pointer-events-auto">
-              <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-10">
+              <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
                 📍
               </div>
               {hoveredPinIndex === index && (
@@ -123,7 +123,7 @@ export default function Map() {
       {/* React popup */}
       {activePopupData && popupPos && (
         <div
-          className="absolute z-50 max-w-xs p-4"
+          className="absolute z-10 max-w-xs p-4"
           style={{
             left: popupPos.x,
             top: popupPos.y,
