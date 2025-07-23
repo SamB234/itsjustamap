@@ -120,12 +120,10 @@ export default function Map() {
     <>
       <div ref={mapContainer} className="absolute top-0 left-0 w-full h-full" />
 
-      {/* Info panel */}
       <div className="absolute top-[75px] left-5 bg-white/85 px-3 py-2 rounded shadow-sm text-sm z-30">
         📍 Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}
       </div>
 
-      {/* Fixed center pin */}
       <div
         className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-5 pointer-events-none"
       >
@@ -138,11 +136,12 @@ export default function Map() {
         </button>
       </div>
 
-      {/* Render dropped pins */}
+      {/* Dropped Pins */}
       {droppedPins.map((pin, index) => {
         const [pinLng, pinLat] = pin
         if (!map.current) return null
         const point = map.current.project([pinLng, pinLat])
+        const isHovered = hoveredPinIndex === index
 
         return (
           <div
@@ -165,15 +164,17 @@ export default function Map() {
               >
                 📍
               </button>
-              {hoveredPinIndex === index && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
+
+              {/* Arrows shown only on hover, but without triggering layout shift */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                {isHovered && (
                   <ArrowPin
                     onArrowClick={(dir) =>
                       handleArrowClick(directionMap[dir] || dir, pin)
                     }
                   />
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         )
