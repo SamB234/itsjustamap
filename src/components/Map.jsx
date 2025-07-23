@@ -63,11 +63,15 @@ export default function Map() {
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}`
       )
       const data = await response.json()
-      if (data?.features?.length > 0 && data.features[0].place_name) {
-        return data.features[0].place_name
-      } else {
-        return 'Unknown Location'
-      }
+      const feature = data?.features?.[0]
+      if (!feature) return 'Unknown Location'
+
+      const context = feature.context || []
+      const locality = context.find((c) => c.id.includes('place'))
+        || context.find((c) => c.id.includes('locality'))
+        || context.find((c) => c.id.includes('region'))
+
+      return locality?.text || feature.text || 'Unknown Location'
     } catch (error) {
       console.error('Reverse geocoding error:', error)
       return 'Error fetching location'
@@ -119,21 +123,23 @@ export default function Map() {
       <div ref={mapContainer} className="absolute top-0 left-0 w-full h-full" />
 
       {/* Info panel */}
-      <div className="absolute top-[75px] left-5 bg-white/85 px-3 py-2 rounded shadow-sm text-sm z-30">
+      <div className="absolute top-[75px] left-5 bg-white/85 px-3 py-2 rounded shadow-sm text-sm z-30 pointer-events-auto">
         📍 Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}
       </div>
 
       {/* Fixed center pin */}
       <div
-        className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-5 cursor-pointer select-none"
-        onClick={dropPinAtCenter}
+        className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-5 pointer-events-none"
       >
-        <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center text-white font-bold">
+        <div
+          className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center text-white font-bold cursor-pointer pointer-events-auto"
+          onClick={dropPinAtCenter}
+        >
           📍
         </div>
       </div>
 
-      {/* Render dropped pins */}
+      {/* Dropped pins */}
       {droppedPins.map((pin, index) => {
         const [pinLng, pinLat] = pin
         if (!map.current) return null
@@ -142,21 +148,20 @@ export default function Map() {
         return (
           <div
             key={index}
-            className="absolute"
+            className="absolute pointer-events-none"
             style={{
               left: point.x,
               top: point.y,
               transform: 'translate(-50%, -50%)',
-              width: 80,
-              height: 80,
-              cursor: 'pointer',
               zIndex: 5,
             }}
-            onMouseEnter={() => setHoveredPinIndex(index)}
-            onMouseLeave={() => setHoveredPinIndex(null)}
-            onClick={() => handlePinClick(pin)}
           >
-            <div className="relative w-20 h-20 pointer-events-auto">
+            <div
+              className="relative w-20 h-20 pointer-events-auto"
+              onMouseEnter={() => setHoveredPinIndex(index)}
+              onMouseLeave={() => setHoveredPinIndex(null)}
+              onClick={() => handlePinClick(pin)}
+            >
               <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
                 📍
               </div>
@@ -177,7 +182,7 @@ export default function Map() {
       {/* Popup */}
       {activePopupData && popupPos && (
         <div
-          className="absolute z-20 max-w-xs p-4"
+          className="absolute z-20 max-w-xs p-4 pointer-events-auto"
           style={{
             left: popupPos.x,
             top: popupPos.y,
@@ -218,9 +223,7 @@ export default function Map() {
             {activePopupData.direction !== 'Overview' && (
               <button
                 className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
-                onClick={() =>
-                  alert(`Explore ${activePopupData.direction}`)
-                }
+                onClick={() => alert(`Explore ${activePopupData.direction}`)}
               >
                 Explore {activePopupData.direction}
               </button>
