@@ -6,6 +6,7 @@ import ArrowPin from './ArrowPin';
 mapboxgl.accessToken =
   'pk.eyJ1Ijoic2FtYjIzNCIsImEiOiJjbWRkZ25xcmcwNHhvMmxxdGU3c2J0eTZnIn0.j5NEdvNhU_eZ1tirQpKEAA';
 
+// IMPORTANT: Replace with the actual URL of your deployed Render backend service
 const API_BASE_URL = 'https://itsjustamap-api-proxy.onrender.com';
 
 const directionMap = {
@@ -18,19 +19,22 @@ const directionMap = {
 export default function Map() {
   const mapContainer = useRef(null);
   const map = useRef(null);
-  const popupRef = useRef(null); // Ref for the popup element to measure its size
 
   const [lng, setLng] = useState(-0.1276);
   const [lat, setLat] = useState(51.5074);
   const [zoom, setZoom] = useState(9);
-  const [droppedPins, setDroppedPins] = useState([]);
-  const [hoveredPinIndex, setHoveredPinIndex] = useState(null);
+  const [droppedPins, setDroppedPins] = useState([]); // Stores [lng, lat] for each pin
+  const [hoveredPinIndex, setHoveredPinIndex] = useState(null); // Index of pin currently hovered
 
+  // State for the active popup, including AI content status
   const [activePopupData, setActivePopupData] = useState(null);
-  const [popupPixelCoords, setPopupPixelCoords] = useState(null); // Separate state for actual pixel coordinates after calculations
+  const [popupPos, setPopupPos] = useState(null); // Initialize with null to indicate no popup active/positioned
+
+  // State to determine popup's horizontal alignment (left or right of marker)
+  const [isPopupRightAligned, setIsPopupRightAligned] = useState(false);
 
   useEffect(() => {
-    if (map.current) return;
+    if (map.current) return; // Initialize map only once
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -60,53 +64,35 @@ export default function Map() {
     };
   }, []);
 
-  // Effect to calculate and update popup pixel coordinates based on map position and screen boundaries
+  // Effect to update popup position when map moves or popup data changes
   useEffect(() => {
     if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
-      setPopupPixelCoords(null);
+      setPopupPos(null);
       return;
     }
 
-    // Get the pixel coordinates of the marker
-    const markerScreenPos = map.current.project([activePopupData.lng, activePopupData.lat]);
+    try {
+      const point = map.current.project([activePopupData.lng, activePopupData.lat]);
+      setPopupPos({ x: point.x, y: point.y });
 
-    // Define preferred popup dimensions (from Tailwind classes)
-    const popupWidth = 320; // Corresponds to max-w-xs (20rem)
-    const popupHeightOffset = 130; // Roughly 130% for 'translate(-50%, -130%)' to position it above
+      // Determine if the popup needs to be right-aligned (flipped to the left of the marker)
+      // Assuming a popup width of approx. 300px and a little padding
+      const popupWidth = 320; // Let's estimate a fixed width for the popup + padding
+      const margin = 20; // Some margin from the right edge
+      const mapContainerWidth = mapContainer.current.offsetWidth;
 
-    let finalX = markerScreenPos.x;
-    let finalY = markerScreenPos.y;
+      // If the marker's pixel X position is too close to the right edge for the popup to fit comfortably on its right
+      if (point.x + popupWidth / 2 + margin > mapContainerWidth) {
+        setIsPopupRightAligned(true); // Flip to the left side
+      } else {
+        setIsPopupRightAligned(false); // Keep on the right side
+      }
 
-    // Adjust for horizontal centering and push up from marker
-    finalX -= popupWidth / 2; // initial shift left by half its width for centering
-    finalY -= popupHeightOffset; // initial shift up for positioning above
-
-    // Get viewport dimensions
-    const mapContainerRect = mapContainer.current.getBoundingClientRect();
-    const viewportWidth = mapContainerRect.width;
-    const viewportHeight = mapContainerRect.height;
-    const padding = 20; // Minimum padding from screen edges
-
-    // Horizontal boundary checks
-    if (finalX < padding) { // Too far left
-        finalX = padding;
-    } else if (finalX + popupWidth + padding > viewportWidth) { // Too far right
-        finalX = viewportWidth - popupWidth - padding;
+    } catch (error) {
+      console.error("Error projecting popup coordinates:", error);
+      setPopupPos(null);
     }
-
-    // Vertical boundary checks (less critical for this issue, but good practice)
-    if (finalY < padding) { // Too far up
-        finalY = padding;
-    } else if (finalY + popupRef.current?.offsetHeight + padding > viewportHeight) { // Too far down
-        // If it goes too far down, we might need to reposition it below the marker
-        // For simplicity, we'll just push it up from the bottom edge
-        finalY = viewportHeight - popupRef.current?.offsetHeight - padding;
-    }
-
-
-    setPopupPixelCoords({ x: finalX, y: finalY });
-
-  }, [activePopupData, lng, lat, zoom]); // Re-run if popup data or map center/zoom changes
+  }, [activePopupData, lng, lat, zoom]);
 
 
   const dropPinAtCenter = useCallback(() => {
@@ -260,10 +246,12 @@ export default function Map() {
     <>
       <div ref={mapContainer} className="absolute top-0 left-0 w-full h-full" />
 
+      {/* Info panel */}
       <div className="absolute top-[75px] left-5 bg-white/85 px-3 py-2 rounded shadow-sm text-sm z-30 pointer-events-auto">
         📍 Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}
       </div>
 
+      {/* Fixed center pin */}
       <div
         className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-5 pointer-events-none"
       >
@@ -275,6 +263,7 @@ export default function Map() {
         </div>
       </div>
 
+      {/* Dropped pins */}
       {droppedPins.map((pin, index) => {
         const [pinLng, pinLat] = pin;
 
@@ -318,34 +307,25 @@ export default function Map() {
       })}
 
       {/* Popup */}
-      {activePopupData && popupPixelCoords && map.current &&
+      {activePopupData && popupPos && map.current &&
         typeof activePopupData.lng === 'number' && !isNaN(activePopupData.lng) &&
         typeof activePopupData.lat === 'number' && !isNaN(activePopupData.lat) && (
           <div
-            ref={popupRef} // Attach ref to the popup div
             className="absolute z-20 p-4 pointer-events-auto"
             style={{
-              left: popupPixelCoords.x,
-              top: popupPixelCoords.y,
-              // Removed the transform here, as positioning is now handled in useEffect
+              left: popupPos.x,
+              top: popupPos.y,
+              // Conditional transform based on isPopupRightAligned
+              transform: isPopupRightAligned ? 'translate(calc(-100% - 10px), -130%)' : 'translate(10px, -130%)',
+              width: '320px', // Fixed width for the popup
+              // No max-width or min-width needed if width is fixed
               background: 'rgba(240, 240, 240, 0.95)',
               backdropFilter: 'blur(8px)',
               borderRadius: '12px',
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
               color: '#111',
               fontFamily: 'system-ui, sans-serif',
-              // Added responsive width controls
-              minWidth: '250px', // A minimum width
-              maxWidth: '320px', // Your original max-w-xs (20rem)
-              width: 'calc(100vw - 40px)', // Occupy full width minus padding on small screens
-                                           // This line needs to be carefully evaluated for desired behavior on larger screens
-                                           // For desktop, this could make it too wide if the viewport is very large.
-                                           // Let's refine for mobile.
             }}
-            // Tailwind classes for responsive width
-            // This is a direct style prop, it will override Tailwind classes
-            // For responsive width control, we often use Tailwind's responsive prefixes (e.g., sm:max-w-xs)
-            // But for this absolute positioning scenario, direct style overrides are common.
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-2">
