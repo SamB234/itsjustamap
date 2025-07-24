@@ -30,8 +30,7 @@ export default function Map() {
   const [activePopupData, setActivePopupData] = useState(null);
   const [popupPos, setPopupPos] = useState(null); // Initialize with null to indicate no popup active/positioned
 
-  // State to determine popup's horizontal alignment (left or right of marker)
-  const [isPopupRightAligned, setIsPopupRightAligned] = useState(false);
+  // Removed isPopupRightAligned state as it's no longer needed for central positioning
 
   useEffect(() => {
     if (map.current) return; // Initialize map only once
@@ -75,24 +74,13 @@ export default function Map() {
       const point = map.current.project([activePopupData.lng, activePopupData.lat]);
       setPopupPos({ x: point.x, y: point.y });
 
-      // Determine if the popup needs to be right-aligned (flipped to the left of the marker)
-      // Assuming a popup width of approx. 300px and a little padding
-      const popupWidth = 320; // Let's estimate a fixed width for the popup + padding
-      const margin = 20; // Some margin from the right edge
-      const mapContainerWidth = mapContainer.current.offsetWidth;
-
-      // If the marker's pixel X position is too close to the right edge for the popup to fit comfortably on its right
-      if (point.x + popupWidth / 2 + margin > mapContainerWidth) {
-        setIsPopupRightAligned(true); // Flip to the left side
-      } else {
-        setIsPopupRightAligned(false); // Keep on the right side
-      }
+      // No need for isPopupRightAligned logic here anymore
 
     } catch (error) {
       console.error("Error projecting popup coordinates:", error);
       setPopupPos(null);
     }
-  }, [activePopupData, lng, lat, zoom]);
+  }, [activePopupData, lng, lat, zoom]); // Keep dependencies as they affect popupPos calculation
 
 
   const dropPinAtCenter = useCallback(() => {
@@ -315,10 +303,9 @@ export default function Map() {
             style={{
               left: popupPos.x,
               top: popupPos.y,
-              // Conditional transform based on isPopupRightAligned
-              transform: isPopupRightAligned ? 'translate(calc(-100% - 10px), -130%)' : 'translate(10px, -130%)',
+              // Always center horizontally above the pin and translate upwards
+              transform: 'translate(-50%, -130%)',
               width: '320px', // Fixed width for the popup
-              // No max-width or min-width needed if width is fixed
               background: 'rgba(240, 240, 240, 0.95)',
               backdropFilter: 'blur(8px)',
               borderRadius: '12px',
