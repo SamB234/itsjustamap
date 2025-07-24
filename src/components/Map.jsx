@@ -26,11 +26,12 @@ export default function Map() {
   const [droppedPins, setDroppedPins] = useState([]); // Stores [lng, lat] for each pin
   const [hoveredPinIndex, setHoveredPinIndex] = useState(null); // Index of pin currently hovered
 
-  // State for the active popup, including AI content status
+  // State for the active popup, including AI content status and now, selectedRadius
   const [activePopupData, setActivePopupData] = useState(null);
   const [popupPos, setPopupPos] = useState(null); // Initialize with null to indicate no popup active/positioned
 
-  // Removed isPopupRightAligned state as it's no longer needed for central positioning
+  // NEW STATE: For the current radius selected in the slider (per popup)
+  const [selectedRadius, setSelectedRadius] = useState(5); // Default radius in km
 
   useEffect(() => {
     if (map.current) return; // Initialize map only once
@@ -74,13 +75,11 @@ export default function Map() {
       const point = map.current.project([activePopupData.lng, activePopupData.lat]);
       setPopupPos({ x: point.x, y: point.y });
 
-      // No need for isPopupRightAligned logic here anymore
-
     } catch (error) {
       console.error("Error projecting popup coordinates:", error);
       setPopupPos(null);
     }
-  }, [activePopupData, lng, lat, zoom]); // Keep dependencies as they affect popupPos calculation
+  }, [activePopupData, lng, lat, zoom]);
 
 
   const dropPinAtCenter = useCallback(() => {
@@ -125,7 +124,8 @@ export default function Map() {
     }
   }, []);
 
-  const fetchAISuggestion = useCallback(async (pinIndex, placeName, direction, lng, lat) => {
+  // Modified fetchAISuggestion to accept radius
+  const fetchAISuggestion = useCallback(async (pinIndex, placeName, direction, lng, lat, radius = null) => {
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
       console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
       setActivePopupData({
@@ -150,6 +150,8 @@ export default function Map() {
       loading: true,
       aiContent: 'Generating suggestions...',
       error: null,
+      // Retain the current radius in popup data, or use the default if overview
+      radius: direction === 'Overview' ? null : radius, // Don't show radius for overview
     });
 
     try {
@@ -158,7 +160,8 @@ export default function Map() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ placeName, direction }),
+        // Include radius in the body if it's a directional request
+        body: JSON.stringify({ placeName, direction, lng, lat, radius }),
       });
 
       if (!response.ok) {
@@ -193,9 +196,11 @@ export default function Map() {
       }
 
       const placeName = await fetchPlaceName(lng, lat);
-      const direction = 'Overview';
+      const direction = 'Overview'; // No direction for center pin click
 
-      fetchAISuggestion(index, placeName, direction, lng, lat);
+      // When opening an overview popup, reset the radius to default
+      setSelectedRadius(5); // Reset to 5km for overview
+      fetchAISuggestion(index, placeName, direction, lng, lat, null); // Pass null for radius for overview
     },
     [fetchPlaceName, fetchAISuggestion]
   );
@@ -211,13 +216,16 @@ export default function Map() {
       const placeName = await fetchPlaceName(lng, lat);
       const direction = directionMap[directionKey] || directionKey;
 
-      fetchAISuggestion(index, placeName, direction, lng, lat);
+      // When opening a directional popup, ensure radius is set for the request
+      // We'll use the current 'selectedRadius' state for the request
+      fetchAISuggestion(index, placeName, direction, lng, lat, selectedRadius);
     },
-    [fetchPlaceName, fetchAISuggestion]
+    [fetchPlaceName, fetchAISuggestion, selectedRadius] // Add selectedRadius to dependencies
   );
 
   const handleClosePopup = useCallback(() => {
     setActivePopupData(null);
+    setSelectedRadius(5); // Reset radius when closing popup
   }, []);
 
   const handleRemoveMarker = useCallback(() => {
@@ -227,8 +235,15 @@ export default function Map() {
       prevPins.filter((_, index) => index !== activePopupData.pinIndex)
     );
     setActivePopupData(null);
+    setSelectedRadius(5); // Reset radius when removing marker
     setHoveredPinIndex(null);
   }, [activePopupData]);
+
+  // Handler for slider change
+  const handleRadiusChange = useCallback((event) => {
+    setSelectedRadius(Number(event.target.value));
+  }, []);
+
 
   return (
     <>
@@ -303,7 +318,6 @@ export default function Map() {
             style={{
               left: popupPos.x,
               top: popupPos.y,
-              // Always center horizontally above the pin and translate upwards
               transform: 'translate(-50%, -130%)',
               width: '320px', // Fixed width for the popup
               background: 'rgba(240, 240, 240, 0.95)',
@@ -333,6 +347,26 @@ export default function Map() {
                 ? 'Discover this area'
                 : `Explore toward the ${activePopupData.direction}`}
             </div>
+            
+            {/* NEW: Radius Slider for directional responses */}
+            {activePopupData.direction !== 'Overview' && (
+              <div className="mb-4">
+                <label htmlFor="radius-slider" className="block text-sm font-medium text-gray-700 mb-1">
+                  Radius: {selectedRadius} km
+                </label>
+                <input
+                  type="range"
+                  id="radius-slider"
+                  min="1"
+                  max="50" // Max radius, adjust as needed
+                  step="1"
+                  value={selectedRadius}
+                  onChange={handleRadiusChange}
+                  className="w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer range-lg"
+                />
+              </div>
+            )}
+
             <p className="mb-4 text-gray-800 text-sm whitespace-pre-wrap">
               {activePopupData.loading ? (
                 <span className="text-blue-500 animate-pulse">{activePopupData.aiContent}</span>
@@ -346,7 +380,8 @@ export default function Map() {
               {activePopupData.direction !== 'Overview' && (
                 <button
                   className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
-                  onClick={() => alert(`Explore ${activePopupData.direction}`)}
+                  // Now, clicking this button should re-fetch with the current radius
+                  onClick={() => handleArrowClick(Object.keys(directionMap).find(key => directionMap[key] === activePopupData.direction), [activePopupData.lng, activePopupData.lat], activePopupData.pinIndex)}
                 >
                   Explore {activePopupData.direction}
                 </button>
