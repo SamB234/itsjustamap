@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ArrowPin from './ArrowPin';
-import { getArcPoints, getCirclePoints } from './mapUtils'; // NEW: We'll create this file
+import { getArcPoints, getCirclePoints } from './mapUtils'; // Keep both for now, getCirclePoints might be removed later
 
 mapboxgl.accessToken =
   'pk.eyJ1Ijoic2FtYjIzNCIsImEiOiJjbWRkZ25xcmcwNHhvMmxxdGU3c2J0eTZnIn0.j5NEdvNhU_eZ1tirQpKEAA';
@@ -37,8 +37,7 @@ export default function Map() {
 
   // State for the current radius selected in the slider (per popup)
   const [selectedRadius, setSelectedRadius] = useState(5); // Default radius in km
-  // NEW STATE: To track if the initial circle is shown or if it's segmented arcs
-  const [showSegmentedArcs, setShowSegmentedArcs] = useState(false);
+  // Removed showSegmentedArcs, it's no longer needed in the same way
 
   useEffect(() => {
     if (map.current) return; // Initialize map only once
@@ -64,7 +63,7 @@ export default function Map() {
       console.warn(`Mapbox GL JS: Missing image ${e.id}. This might be a default style icon that doesn't affect functionality.`);
     });
 
-    // NEW: Add source and layer for arcs when map initializes
+    // Add source and layer for arcs when map initializes
     map.current.on('load', () => {
       if (!map.current.getSource(ARC_SOURCE_ID)) {
         map.current.addSource(ARC_SOURCE_ID, {
@@ -115,7 +114,7 @@ export default function Map() {
     };
   }, []);
 
-  // Effect to update popup position when map moves or popup data changes
+  // Effect to update popup position and arc visibility when map moves or popup data changes
   useEffect(() => {
     if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
       setPopupPos(null);
@@ -139,42 +138,19 @@ export default function Map() {
             geojson = { type: 'FeatureCollection', features: [] }; // No arcs for overview
         } else {
             const centerCoords = [activePopupData.lng, activePopupData.lat];
-            if (!showSegmentedArcs) {
-                // Show a full circle initially for directional popups
-                const circlePoints = getCirclePoints(centerCoords, selectedRadius);
-                geojson = {
-                    type: 'FeatureCollection',
-                    features: [{
-                        type: 'Feature',
-                        geometry: {
-                            type: 'Polygon',
-                            coordinates: [circlePoints]
-                        },
-                        properties: {}
-                    }]
-                };
-            } else {
-                // Show segmented arcs once slider is interacted with
-                const arcFeatures = [];
-                Object.keys(directionMap).forEach(dirKey => {
-                    const directionName = directionMap[dirKey];
-                    const arcPoints = getArcPoints(centerCoords, selectedRadius, directionName);
-                    if (arcPoints.length > 0) {
-                        arcFeatures.push({
-                            type: 'Feature',
-                            geometry: {
-                                type: 'Polygon',
-                                coordinates: [arcPoints]
-                            },
-                            properties: { direction: directionName }
-                        });
-                    }
-                });
-                geojson = {
-                    type: 'FeatureCollection',
-                    features: arcFeatures
-                };
-            }
+            // Always show only the active direction's arc
+            const arcPoints = getArcPoints(centerCoords, selectedRadius, activePopupData.direction);
+            geojson = {
+                type: 'FeatureCollection',
+                features: arcPoints.length > 0 ? [{
+                    type: 'Feature',
+                    geometry: {
+                        type: 'Polygon',
+                        coordinates: [arcPoints]
+                    },
+                    properties: { direction: activePopupData.direction }
+                }] : []
+            };
         }
         source.setData(geojson);
       }
@@ -183,7 +159,7 @@ export default function Map() {
       console.error("Error projecting popup coordinates or updating arc:", error);
       setPopupPos(null);
     }
-  }, [activePopupData, lng, lat, zoom, selectedRadius, showSegmentedArcs]); // Add new dependencies
+  }, [activePopupData, lng, lat, zoom, selectedRadius]); // Removed showSegmentedArcs from dependencies
 
 
   const dropPinAtCenter = useCallback(() => {
@@ -296,7 +272,7 @@ export default function Map() {
 
       // For overview, we still want to fetch AI immediately
       setSelectedRadius(5); // Reset to default for overview
-      setShowSegmentedArcs(false); // NEW: Ensure segmented arcs are off for overview
+      // setShowSegmentedArcs(false); // No longer needed
       setActivePopupData({
         pinIndex: index,
         lng,
@@ -327,7 +303,7 @@ export default function Map() {
 
       // When opening directional popup, set initial state for popup
       setSelectedRadius(5); // Reset radius to default when opening
-      setShowSegmentedArcs(false); // NEW: Start with full circle
+      // setShowSegmentedArcs(false); // No longer needed, as we always show single arc
       setActivePopupData({
         pinIndex: index,
         lng,
@@ -339,6 +315,8 @@ export default function Map() {
         error: null,
         radius: 5, // Default radius for display
       });
+      // The arc will be drawn here because activePopupData.direction is set,
+      // and selectedRadius is set, triggering the useEffect
     },
     [fetchPlaceName]
   );
@@ -348,14 +326,14 @@ export default function Map() {
     if (!activePopupData) return;
     const { pinIndex, placeName, direction, lng, lat } = activePopupData;
     fetchAISuggestion(pinIndex, placeName, direction, lng, lat, selectedRadius);
-    setShowSegmentedArcs(true); // NEW: Show segmented arcs after explore is clicked
+    // setShowSegmentedArcs(true); // No longer needed, as we always show single arc
   }, [activePopupData, fetchAISuggestion, selectedRadius]);
 
 
   const handleClosePopup = useCallback(() => {
     setActivePopupData(null);
     setSelectedRadius(5); // Reset radius when closing popup
-    setShowSegmentedArcs(false); // NEW: Reset arc display
+    // setShowSegmentedArcs(false); // No longer needed
     // Clear the arcs from the map when popup closes
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
@@ -370,7 +348,7 @@ export default function Map() {
     );
     setActivePopupData(null);
     setSelectedRadius(5); // Reset radius when removing marker
-    setShowSegmentedArcs(false); // NEW: Reset arc display
+    // setShowSegmentedArcs(false); // No longer needed
     // Clear the arcs from the map when marker is removed
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
@@ -382,7 +360,7 @@ export default function Map() {
   const handleRadiusChange = useCallback((event) => {
     const newRadius = Number(event.target.value);
     setSelectedRadius(newRadius);
-    setShowSegmentedArcs(true); // NEW: Start showing segmented arcs once slider is moved
+    // setShowSegmentedArcs(true); // No longer needed, as we always show single arc
     // When radius changes, clear AI content to prompt re-generation
     setActivePopupData(prev => ({
         ...prev,
