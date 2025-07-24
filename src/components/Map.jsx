@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ArrowPin from './ArrowPin';
+import { getArcPoints, getCirclePoints } from './mapUtils'; // NEW: We'll create this file
 
 mapboxgl.accessToken =
   'pk.eyJ1Ijoic2FtYjIzNCIsImEiOiJjbWRkZ25xcmcwNHhvMmxxdGU3c2J0eTZnIn0.j5NEdvNhU_eZ1tirQpKEAA';
@@ -15,6 +16,10 @@ const directionMap = {
   E: 'East',
   W: 'West',
 };
+
+// Define constants for the Mapbox layers
+const ARC_SOURCE_ID = 'arc-source';
+const ARC_LAYER_ID = 'arc-layer';
 
 export default function Map() {
   const mapContainer = useRef(null);
@@ -32,6 +37,8 @@ export default function Map() {
 
   // State for the current radius selected in the slider (per popup)
   const [selectedRadius, setSelectedRadius] = useState(5); // Default radius in km
+  // NEW STATE: To track if the initial circle is shown or if it's segmented arcs
+  const [showSegmentedArcs, setShowSegmentedArcs] = useState(false);
 
   useEffect(() => {
     if (map.current) return; // Initialize map only once
@@ -57,8 +64,52 @@ export default function Map() {
       console.warn(`Mapbox GL JS: Missing image ${e.id}. This might be a default style icon that doesn't affect functionality.`);
     });
 
+    // NEW: Add source and layer for arcs when map initializes
+    map.current.on('load', () => {
+      if (!map.current.getSource(ARC_SOURCE_ID)) {
+        map.current.addSource(ARC_SOURCE_ID, {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: [] // Start with an empty feature collection
+          }
+        });
+      }
+
+      if (!map.current.getLayer(ARC_LAYER_ID)) {
+        map.current.addLayer({
+          id: ARC_LAYER_ID,
+          type: 'fill', // Use 'fill' for a solid area
+          source: ARC_SOURCE_ID,
+          layout: {},
+          paint: {
+            'fill-color': '#00BFFF', // Light blue color
+            'fill-opacity': 0.25,    // Semi-transparent
+            'fill-outline-color': '#007FFF' // Slightly darker blue border
+          }
+        });
+
+        // Add a line layer for the outline/segment lines if desired
+        map.current.addLayer({
+          id: `${ARC_LAYER_ID}-line`,
+          type: 'line',
+          source: ARC_SOURCE_ID,
+          layout: {},
+          paint: {
+            'line-color': '#007FFF', // Match outline color
+            'line-width': 2,
+            'line-opacity': 0.75
+          }
+        });
+      }
+    });
+
     return () => {
       if (map.current) {
+        // Clean up layers and sources when component unmounts
+        if (map.current.getLayer(`${ARC_LAYER_ID}-line`)) map.current.removeLayer(`${ARC_LAYER_ID}-line`);
+        if (map.current.getLayer(ARC_LAYER_ID)) map.current.removeLayer(ARC_LAYER_ID);
+        if (map.current.getSource(ARC_SOURCE_ID)) map.current.removeSource(ARC_SOURCE_ID);
         map.current.remove();
       }
     };
@@ -68,6 +119,10 @@ export default function Map() {
   useEffect(() => {
     if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
       setPopupPos(null);
+      // Clear arcs when no active popup
+      if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
+        map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
+      }
       return;
     }
 
@@ -75,11 +130,60 @@ export default function Map() {
       const point = map.current.project([activePopupData.lng, activePopupData.lat]);
       setPopupPos({ x: point.x, y: point.y });
 
+      // NEW: Update arc visibility based on activePopupData and selectedRadius
+      if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
+        const source = map.current.getSource(ARC_SOURCE_ID);
+        let geojson;
+
+        if (activePopupData.direction === 'Overview') {
+            geojson = { type: 'FeatureCollection', features: [] }; // No arcs for overview
+        } else {
+            const centerCoords = [activePopupData.lng, activePopupData.lat];
+            if (!showSegmentedArcs) {
+                // Show a full circle initially for directional popups
+                const circlePoints = getCirclePoints(centerCoords, selectedRadius);
+                geojson = {
+                    type: 'FeatureCollection',
+                    features: [{
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [circlePoints]
+                        },
+                        properties: {}
+                    }]
+                };
+            } else {
+                // Show segmented arcs once slider is interacted with
+                const arcFeatures = [];
+                Object.keys(directionMap).forEach(dirKey => {
+                    const directionName = directionMap[dirKey];
+                    const arcPoints = getArcPoints(centerCoords, selectedRadius, directionName);
+                    if (arcPoints.length > 0) {
+                        arcFeatures.push({
+                            type: 'Feature',
+                            geometry: {
+                                type: 'Polygon',
+                                coordinates: [arcPoints]
+                            },
+                            properties: { direction: directionName }
+                        });
+                    }
+                });
+                geojson = {
+                    type: 'FeatureCollection',
+                    features: arcFeatures
+                };
+            }
+        }
+        source.setData(geojson);
+      }
+
     } catch (error) {
-      console.error("Error projecting popup coordinates:", error);
+      console.error("Error projecting popup coordinates or updating arc:", error);
       setPopupPos(null);
     }
-  }, [activePopupData, lng, lat, zoom]);
+  }, [activePopupData, lng, lat, zoom, selectedRadius, showSegmentedArcs]); // Add new dependencies
 
 
   const dropPinAtCenter = useCallback(() => {
@@ -188,10 +292,11 @@ export default function Map() {
       }
 
       const placeName = await fetchPlaceName(lng, lat);
-      const direction = 'Overview';
+      const direction = 'Overview'; // No direction for center pin click
 
       // For overview, we still want to fetch AI immediately
       setSelectedRadius(5); // Reset to default for overview
+      setShowSegmentedArcs(false); // NEW: Ensure segmented arcs are off for overview
       setActivePopupData({
         pinIndex: index,
         lng,
@@ -208,7 +313,7 @@ export default function Map() {
     [fetchPlaceName, fetchAISuggestion]
   );
 
-  // NEW: handleDirectionalPopupOpen is called when an arrow is clicked
+  // handleDirectionalPopupOpen is called when an arrow is clicked
   const handleDirectionalPopupOpen = useCallback(
     async (directionKey, pinCoordinates, index) => {
       const [lng, lat] = pinCoordinates;
@@ -221,8 +326,8 @@ export default function Map() {
       const direction = directionMap[directionKey] || directionKey;
 
       // When opening directional popup, set initial state for popup
-      // DO NOT call fetchAISuggestion here
       setSelectedRadius(5); // Reset radius to default when opening
+      setShowSegmentedArcs(false); // NEW: Start with full circle
       setActivePopupData({
         pinIndex: index,
         lng,
@@ -235,7 +340,7 @@ export default function Map() {
         radius: 5, // Default radius for display
       });
     },
-    [fetchPlaceName] // fetchAISuggestion not needed here
+    [fetchPlaceName]
   );
 
   // This will be called when the "Explore" button is clicked
@@ -243,12 +348,18 @@ export default function Map() {
     if (!activePopupData) return;
     const { pinIndex, placeName, direction, lng, lat } = activePopupData;
     fetchAISuggestion(pinIndex, placeName, direction, lng, lat, selectedRadius);
+    setShowSegmentedArcs(true); // NEW: Show segmented arcs after explore is clicked
   }, [activePopupData, fetchAISuggestion, selectedRadius]);
 
 
   const handleClosePopup = useCallback(() => {
     setActivePopupData(null);
     setSelectedRadius(5); // Reset radius when closing popup
+    setShowSegmentedArcs(false); // NEW: Reset arc display
+    // Clear the arcs from the map when popup closes
+    if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
+      map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
+    }
   }, []);
 
   const handleRemoveMarker = useCallback(() => {
@@ -259,19 +370,26 @@ export default function Map() {
     );
     setActivePopupData(null);
     setSelectedRadius(5); // Reset radius when removing marker
+    setShowSegmentedArcs(false); // NEW: Reset arc display
+    // Clear the arcs from the map when marker is removed
+    if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
+      map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
+    }
     setHoveredPinIndex(null);
   }, [activePopupData]);
 
   // Handler for slider change
   const handleRadiusChange = useCallback((event) => {
-    setSelectedRadius(Number(event.target.value));
+    const newRadius = Number(event.target.value);
+    setSelectedRadius(newRadius);
+    setShowSegmentedArcs(true); // NEW: Start showing segmented arcs once slider is moved
     // When radius changes, clear AI content to prompt re-generation
     setActivePopupData(prev => ({
         ...prev,
         loading: false,
         aiContent: 'Adjust radius and click "Explore" to get suggestions.',
         error: null,
-        radius: Number(event.target.value) // Update radius in popup data
+        radius: newRadius // Update radius in popup data
     }));
   }, []);
 
