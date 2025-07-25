@@ -3,7 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ArrowPin from './ArrowPin';
 import { getArcPoints, getCirclePoints } from './mapUtils'; // Keep both for now, getCirclePoints might be removed later
-import Sidebar from './Sidebar'; // NEW: Import Sidebar component
+import Sidebar from './Sidebar'; // Import Sidebar component
 
 mapboxgl.accessToken =
   'pk.eyJ1Ijoic2FtYjIzNCIsImEiOiJjbWRkZ25xcmcwNHhvMmxxdGU3c2J0eTZnIn0.j5NEdvNhU_eZ1tirQpKEAA';
@@ -39,8 +39,8 @@ export default function Map() {
   // State for the current radius selected in the slider (per popup)
   const [selectedRadius, setSelectedRadius] = useState(5); // Default radius in km
   
-  // NEW STATE: For controlling sidebar visibility
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // State for controlling sidebar visibility
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Changed initial state to false (closed) for collapsed start
 
   useEffect(() => {
     if (map.current) return; // Initialize map only once
@@ -368,9 +368,14 @@ export default function Map() {
     }));
   }, []);
 
-  // NEW: Toggle sidebar function
-  const toggleSidebar = useCallback(() => {
-    setIsSidebarOpen(prev => !prev);
+  // NEW: Function to open sidebar (used by the new toggle button)
+  const openSidebar = useCallback(() => {
+    setIsSidebarOpen(true);
+  }, []);
+
+  // NEW: Function to close sidebar (passed to Sidebar component)
+  const closeSidebar = useCallback(() => {
+    setIsSidebarOpen(false);
   }, []);
 
 
@@ -535,17 +540,11 @@ export default function Map() {
           </div>
         )}
 
-        {/* NEW: Sidebar Toggle Button */}
-        <button
-          onClick={toggleSidebar}
-          className="fixed top-20 right-5 p-3 bg-blue-700 text-white rounded-full shadow-lg z-50 hover:bg-blue-800 transition-colors"
-          aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
-        >
-          {isSidebarOpen ? '✖' : '☰'} {/* Simple icons for open/close */}
-        </button>
+        {/* Removed the standalone sidebar toggle button from Map.jsx
+            because it's now handled internally by Sidebar.jsx */}
 
-        {/* NEW: Render Sidebar component */}
-        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)}>
+        {/* Render Sidebar component */}
+        <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar}>
           {/* Content for the sidebar will go here */}
           <p className="text-gray-700">This is where your trip planning tools will go!</p>
           <div className="mt-4 p-3 bg-white rounded-lg shadow-inner">
