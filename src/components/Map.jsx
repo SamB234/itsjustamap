@@ -3,6 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ArrowPin from './ArrowPin';
 import { getArcPoints, getCirclePoints } from './mapUtils'; // Keep both for now, getCirclePoints might be removed later
+import Sidebar from './Sidebar'; // NEW: Import Sidebar component
 
 mapboxgl.accessToken =
   'pk.eyJ1Ijoic2FtYjIzNCIsImEiOiJjbWRkZ25xcmcwNHhvMmxxdGU3c2J0eTZnIn0.j5NEdvNhU_eZ1tirQpKEAA';
@@ -37,7 +38,9 @@ export default function Map() {
 
   // State for the current radius selected in the slider (per popup)
   const [selectedRadius, setSelectedRadius] = useState(5); // Default radius in km
-  // Removed showSegmentedArcs, it's no longer needed in the same way
+  
+  // NEW STATE: For controlling sidebar visibility
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (map.current) return; // Initialize map only once
@@ -129,7 +132,7 @@ export default function Map() {
       const point = map.current.project([activePopupData.lng, activePopupData.lat]);
       setPopupPos({ x: point.x, y: point.y });
 
-      // NEW: Update arc visibility based on activePopupData and selectedRadius
+      // Update arc visibility based on activePopupData and selectedRadius
       if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
         const source = map.current.getSource(ARC_SOURCE_ID);
         let geojson;
@@ -159,7 +162,7 @@ export default function Map() {
       console.error("Error projecting popup coordinates or updating arc:", error);
       setPopupPos(null);
     }
-  }, [activePopupData, lng, lat, zoom, selectedRadius]); // Removed showSegmentedArcs from dependencies
+  }, [activePopupData, lng, lat, zoom, selectedRadius]);
 
 
   const dropPinAtCenter = useCallback(() => {
@@ -272,7 +275,6 @@ export default function Map() {
 
       // For overview, we still want to fetch AI immediately
       setSelectedRadius(5); // Reset to default for overview
-      // setShowSegmentedArcs(false); // No longer needed
       setActivePopupData({
         pinIndex: index,
         lng,
@@ -303,7 +305,6 @@ export default function Map() {
 
       // When opening directional popup, set initial state for popup
       setSelectedRadius(5); // Reset radius to default when opening
-      // setShowSegmentedArcs(false); // No longer needed, as we always show single arc
       setActivePopupData({
         pinIndex: index,
         lng,
@@ -326,14 +327,12 @@ export default function Map() {
     if (!activePopupData) return;
     const { pinIndex, placeName, direction, lng, lat } = activePopupData;
     fetchAISuggestion(pinIndex, placeName, direction, lng, lat, selectedRadius);
-    // setShowSegmentedArcs(true); // No longer needed, as we always show single arc
   }, [activePopupData, fetchAISuggestion, selectedRadius]);
 
 
   const handleClosePopup = useCallback(() => {
     setActivePopupData(null);
     setSelectedRadius(5); // Reset radius when closing popup
-    // setShowSegmentedArcs(false); // No longer needed
     // Clear the arcs from the map when popup closes
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
@@ -348,7 +347,6 @@ export default function Map() {
     );
     setActivePopupData(null);
     setSelectedRadius(5); // Reset radius when removing marker
-    // setShowSegmentedArcs(false); // No longer needed
     // Clear the arcs from the map when marker is removed
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
@@ -360,7 +358,6 @@ export default function Map() {
   const handleRadiusChange = useCallback((event) => {
     const newRadius = Number(event.target.value);
     setSelectedRadius(newRadius);
-    // setShowSegmentedArcs(true); // No longer needed, as we always show single arc
     // When radius changes, clear AI content to prompt re-generation
     setActivePopupData(prev => ({
         ...prev,
@@ -369,6 +366,11 @@ export default function Map() {
         error: null,
         radius: newRadius // Update radius in popup data
     }));
+  }, []);
+
+  // NEW: Toggle sidebar function
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarOpen(prev => !prev);
   }, []);
 
 
@@ -532,6 +534,29 @@ export default function Map() {
             </div>
           </div>
         )}
+
+        {/* NEW: Sidebar Toggle Button */}
+        <button
+          onClick={toggleSidebar}
+          className="fixed top-20 right-5 p-3 bg-blue-700 text-white rounded-full shadow-lg z-50 hover:bg-blue-800 transition-colors"
+          aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+        >
+          {isSidebarOpen ? '✖' : '☰'} {/* Simple icons for open/close */}
+        </button>
+
+        {/* NEW: Render Sidebar component */}
+        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)}>
+          {/* Content for the sidebar will go here */}
+          <p className="text-gray-700">This is where your trip planning tools will go!</p>
+          <div className="mt-4 p-3 bg-white rounded-lg shadow-inner">
+            <h3 className="font-semibold mb-2">Filters (Coming Soon)</h3>
+            <p className="text-sm text-gray-600">e.g., historical sites, foodie spots, nature trails</p>
+          </div>
+          <div className="mt-4 p-3 bg-white rounded-lg shadow-inner">
+            <h3 className="font-semibold mb-2">Trip Connections (Coming Soon)</h3>
+            <p className="text-sm text-gray-600">Manage connections between your markers.</p>
+          </div>
+        </Sidebar>
     </>
   );
 }
