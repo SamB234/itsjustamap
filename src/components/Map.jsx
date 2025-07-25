@@ -2,13 +2,12 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ArrowPin from './ArrowPin';
-import { getArcPoints, getCirclePoints } from './mapUtils'; // Keep both for now, getCirclePoints might be removed later
+import { getArcPoints, getCirclePoints } from './mapUtils';
 import Sidebar from './Sidebar'; // Import Sidebar component
 
 mapboxgl.accessToken =
   'pk.eyJ1Ijoic2FtYjIzNCIsImEiOiJjbWRkZ25xcmcwNHhvMmxxdGU3c2J0eTZnIn0.j5NEdvNhU_eZ1tirQpKEAA';
 
-// IMPORTANT: Replace with the actual URL of your deployed Render backend service
 const API_BASE_URL = 'https://itsjustamap-api-proxy.onrender.com';
 
 const directionMap = {
@@ -18,7 +17,6 @@ const directionMap = {
   W: 'West',
 };
 
-// Define constants for the Mapbox layers
 const ARC_SOURCE_ID = 'arc-source';
 const ARC_LAYER_ID = 'arc-layer';
 
@@ -29,21 +27,19 @@ export default function Map() {
   const [lng, setLng] = useState(-0.1276);
   const [lat, setLat] = useState(51.5074);
   const [zoom, setZoom] = useState(9);
-  const [droppedPins, setDroppedPins] = useState([]); // Stores [lng, lat] for each pin
-  const [hoveredPinIndex, setHoveredPinIndex] = useState(null); // Index of pin currently hovered
+  const [droppedPins, setDroppedPins] = useState([]);
+  const [hoveredPinIndex, setHoveredPinIndex] = useState(null);
 
-  // State for the active popup, including AI content status and now, selectedRadius
   const [activePopupData, setActivePopupData] = useState(null);
-  const [popupPos, setPopupPos] = useState(null); // Initialize with null to indicate no popup active/positioned
+  const [popupPos, setPopupPos] = useState(null);
 
-  // State for the current radius selected in the slider (per popup)
-  const [selectedRadius, setSelectedRadius] = useState(5); // Default radius in km
+  const [selectedRadius, setSelectedRadius] = useState(5);
   
-  // State for controlling sidebar visibility
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Changed initial state to false (closed) for collapsed start
+  // State for controlling sidebar visibility - initial state false (closed)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
 
   useEffect(() => {
-    if (map.current) return; // Initialize map only once
+    if (map.current) return;
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -66,14 +62,13 @@ export default function Map() {
       console.warn(`Mapbox GL JS: Missing image ${e.id}. This might be a default style icon that doesn't affect functionality.`);
     });
 
-    // Add source and layer for arcs when map initializes
     map.current.on('load', () => {
       if (!map.current.getSource(ARC_SOURCE_ID)) {
         map.current.addSource(ARC_SOURCE_ID, {
           type: 'geojson',
           data: {
             type: 'FeatureCollection',
-            features: [] // Start with an empty feature collection
+            features: []
           }
         });
       }
@@ -81,24 +76,23 @@ export default function Map() {
       if (!map.current.getLayer(ARC_LAYER_ID)) {
         map.current.addLayer({
           id: ARC_LAYER_ID,
-          type: 'fill', // Use 'fill' for a solid area
+          type: 'fill',
           source: ARC_SOURCE_ID,
           layout: {},
           paint: {
-            'fill-color': '#00BFFF', // Light blue color
-            'fill-opacity': 0.25,    // Semi-transparent
-            'fill-outline-color': '#007FFF' // Slightly darker blue border
+            'fill-color': '#00BFFF',
+            'fill-opacity': 0.25,
+            'fill-outline-color': '#007FFF'
           }
         });
 
-        // Add a line layer for the outline/segment lines if desired
         map.current.addLayer({
           id: `${ARC_LAYER_ID}-line`,
           type: 'line',
           source: ARC_SOURCE_ID,
           layout: {},
           paint: {
-            'line-color': '#007FFF', // Match outline color
+            'line-color': '#007FFF',
             'line-width': 2,
             'line-opacity': 0.75
           }
@@ -108,7 +102,6 @@ export default function Map() {
 
     return () => {
       if (map.current) {
-        // Clean up layers and sources when component unmounts
         if (map.current.getLayer(`${ARC_LAYER_ID}-line`)) map.current.removeLayer(`${ARC_LAYER_ID}-line`);
         if (map.current.getLayer(ARC_LAYER_ID)) map.current.removeLayer(ARC_LAYER_ID);
         if (map.current.getSource(ARC_SOURCE_ID)) map.current.removeSource(ARC_SOURCE_ID);
@@ -117,11 +110,9 @@ export default function Map() {
     };
   }, []);
 
-  // Effect to update popup position and arc visibility when map moves or popup data changes
   useEffect(() => {
     if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
       setPopupPos(null);
-      // Clear arcs when no active popup
       if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
         map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
       }
@@ -132,16 +123,14 @@ export default function Map() {
       const point = map.current.project([activePopupData.lng, activePopupData.lat]);
       setPopupPos({ x: point.x, y: point.y });
 
-      // Update arc visibility based on activePopupData and selectedRadius
       if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
         const source = map.current.getSource(ARC_SOURCE_ID);
         let geojson;
 
         if (activePopupData.direction === 'Overview') {
-            geojson = { type: 'FeatureCollection', features: [] }; // No arcs for overview
+            geojson = { type: 'FeatureCollection', features: [] };
         } else {
             const centerCoords = [activePopupData.lng, activePopupData.lat];
-            // Always show only the active direction's arc
             const arcPoints = getArcPoints(centerCoords, selectedRadius, activePopupData.direction);
             geojson = {
                 type: 'FeatureCollection',
@@ -207,11 +196,9 @@ export default function Map() {
     }
   }, []);
 
-  // fetchAISuggestion is now explicitly called when needed
   const fetchAISuggestion = useCallback(async (pinIndex, placeName, direction, lng, lat, radius = null) => {
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
       console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
-      // Update popup with error
       setActivePopupData(prev => ({
         ...prev,
         loading: false,
@@ -221,13 +208,12 @@ export default function Map() {
       return;
     }
 
-    // Set loading state for the specific popup data, preserving other info
     setActivePopupData(prev => ({
       ...prev,
       loading: true,
       aiContent: 'Generating suggestions...',
       error: null,
-      radius: direction === 'Overview' ? null : radius, // Preserve radius if already set
+      radius: direction === 'Overview' ? null : radius,
     }));
 
     try {
@@ -271,17 +257,16 @@ export default function Map() {
       }
 
       const placeName = await fetchPlaceName(lng, lat);
-      const direction = 'Overview'; // No direction for center pin click
+      const direction = 'Overview';
 
-      // For overview, we still want to fetch AI immediately
-      setSelectedRadius(5); // Reset to default for overview
+      setSelectedRadius(5);
       setActivePopupData({
         pinIndex: index,
         lng,
         lat,
         direction,
         placeName,
-        loading: true, // Indicate loading for overview
+        loading: true,
         aiContent: 'Generating overview...',
         error: null,
         radius: null,
@@ -291,7 +276,6 @@ export default function Map() {
     [fetchPlaceName, fetchAISuggestion]
   );
 
-  // handleDirectionalPopupOpen is called when an arrow is clicked
   const handleDirectionalPopupOpen = useCallback(
     async (directionKey, pinCoordinates, index) => {
       const [lng, lat] = pinCoordinates;
@@ -303,26 +287,22 @@ export default function Map() {
       const placeName = await fetchPlaceName(lng, lat);
       const direction = directionMap[directionKey] || directionKey;
 
-      // When opening directional popup, set initial state for popup
-      setSelectedRadius(5); // Reset radius to default when opening
+      setSelectedRadius(5);
       setActivePopupData({
         pinIndex: index,
         lng,
         lat,
         direction,
         placeName,
-        loading: false, // Not loading immediately
-        aiContent: 'Adjust radius and click "Explore" to get suggestions.', // Initial message
+        loading: false,
+        aiContent: 'Adjust radius and click "Explore" to get suggestions.',
         error: null,
-        radius: 5, // Default radius for display
+        radius: 5,
       });
-      // The arc will be drawn here because activePopupData.direction is set,
-      // and selectedRadius is set, triggering the useEffect
     },
     [fetchPlaceName]
   );
 
-  // This will be called when the "Explore" button is clicked
   const handleExploreDirection = useCallback(() => {
     if (!activePopupData) return;
     const { pinIndex, placeName, direction, lng, lat } = activePopupData;
@@ -332,8 +312,7 @@ export default function Map() {
 
   const handleClosePopup = useCallback(() => {
     setActivePopupData(null);
-    setSelectedRadius(5); // Reset radius when closing popup
-    // Clear the arcs from the map when popup closes
+    setSelectedRadius(5);
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
@@ -346,34 +325,31 @@ export default function Map() {
       prevPins.filter((_, index) => index !== activePopupData.pinIndex)
     );
     setActivePopupData(null);
-    setSelectedRadius(5); // Reset radius when removing marker
-    // Clear the arcs from the map when marker is removed
+    setSelectedRadius(5);
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
     setHoveredPinIndex(null);
   }, [activePopupData]);
 
-  // Handler for slider change
   const handleRadiusChange = useCallback((event) => {
     const newRadius = Number(event.target.value);
     setSelectedRadius(newRadius);
-    // When radius changes, clear AI content to prompt re-generation
     setActivePopupData(prev => ({
         ...prev,
         loading: false,
         aiContent: 'Adjust radius and click "Explore" to get suggestions.',
         error: null,
-        radius: newRadius // Update radius in popup data
+        radius: newRadius
     }));
   }, []);
 
-  // NEW: Function to open sidebar (used by the new toggle button)
+  // Function to open sidebar (no longer directly used by a button in Map.jsx, but good to keep)
   const openSidebar = useCallback(() => {
     setIsSidebarOpen(true);
   }, []);
 
-  // NEW: Function to close sidebar (passed to Sidebar component)
+  // Function to close sidebar (passed to Sidebar component)
   const closeSidebar = useCallback(() => {
     setIsSidebarOpen(false);
   }, []);
@@ -426,7 +402,6 @@ export default function Map() {
               className="relative w-20 h-20 pointer-events-auto"
               onMouseEnter={() => setHoveredPinIndex(index)}
               onMouseLeave={() => setHoveredPinIndex(null)}
-              // Click for overview popup
               onClick={() => handlePinClick(pin, index)}
             >
               <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
@@ -435,7 +410,6 @@ export default function Map() {
               {hoveredPinIndex === index && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin
-                    // Call new handler for directional popup opening
                     onArrowClick={(dir) => handleDirectionalPopupOpen(dir, pin, index)}
                   />
                 </div>
@@ -455,7 +429,7 @@ export default function Map() {
               left: popupPos.x,
               top: popupPos.y,
               transform: 'translate(-50%, -130%)',
-              width: '320px', // Fixed width for the popup
+              width: '320px',
               background: 'rgba(240, 240, 240, 0.95)',
               backdropFilter: 'blur(8px)',
               borderRadius: '12px',
@@ -516,12 +490,11 @@ export default function Map() {
               {activePopupData.direction !== 'Overview' && (
                 <button
                   className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-700 hover:text-gray-100 transition"
-                  onClick={handleExploreDirection} // Call new handler for exploring direction
+                  onClick={handleExploreDirection}
                 >
                   Explore {activePopupData.direction}
                 </button>
               )}
-              {/* Only show 'Connect' if it's an overview or an explored directional search */}
               {activePopupData.direction === 'Overview' || (activePopupData.direction !== 'Overview' && !activePopupData.loading && !activePopupData.error && activePopupData.aiContent !== 'Adjust radius and click "Explore" to get suggestions.') ? (
                 <button
                   className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
@@ -540,12 +513,8 @@ export default function Map() {
           </div>
         )}
 
-        {/* Removed the standalone sidebar toggle button from Map.jsx
-            because it's now handled internally by Sidebar.jsx */}
-
-        {/* Render Sidebar component */}
+        {/* Sidebar component - now contains its own toggle button */}
         <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar}>
-          {/* Content for the sidebar will go here */}
           <p className="text-gray-700">This is where your trip planning tools will go!</p>
           <div className="mt-4 p-3 bg-white rounded-lg shadow-inner">
             <h3 className="font-semibold mb-2">Filters (Coming Soon)</h3>
