@@ -4,14 +4,13 @@ export default function Sidebar({ isOpen, onClose, children }) {
   const collapsedHeight = '48px'; // Height of the "pill" when collapsed
   const sidebarWidth = '320px';   // Fixed width of the sidebar
   const navbarHeight = '56px';    // Height of your Navbar (h-14 = 56px)
-  const paddingTopFromNavbar = '14px'; // Desired padding below Navbar
+  const paddingTopFromNavbar = '14px'; // Desired padding below Navbar (56px + 14px = 70px total top offset)
 
   return (
     <div
       // Match Navbar styling: backdrop-blur bg-gray-100 bg-opacity-60 shadow-sm
-      // Position: Fixed, calculated based on Navbar height and desired padding
       // Conditional rounded classes: rounded-full when collapsed, rounded-lg when open
-      // overflow-hidden is crucial for corner rounding when collapsed and preventing scrollbars
+      // overflow-hidden is crucial for corner rounding and preventing scrollbars/flicker
       className={`fixed left-5 backdrop-blur bg-gray-100 bg-opacity-60 shadow-sm z-40 transition-all duration-300 ease-in-out flex flex-col ${isOpen ? 'rounded-lg' : 'rounded-full'} overflow-hidden`}
       style={{
         top: `calc(${navbarHeight} + ${paddingTopFromNavbar})`, // Dynamic top position
@@ -29,27 +28,27 @@ export default function Sidebar({ isOpen, onClose, children }) {
 
         {/* Trip Planner Title - Always visible, left-justified with padding */}
         {/* flex-grow pushes the button to the right. text-ellipsis handles overflow. */}
-        <h2 className="text-xl font-semibold text-blue-700 whitespace-nowrap overflow-hidden text-ellipsis flex-grow">
+        {/* text-base for smaller font size */}
+        <h2 className="text-base font-semibold text-blue-700 whitespace-nowrap overflow-hidden text-ellipsis flex-grow">
           Trip Planner
         </h2>
         
         {/* Toggle Button - always visible, positioned on the right within its flex container */}
         <button
           onClick={onClose} // This is the toggle function passed from Map.jsx
-          // Match Navbar button styling: p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500
-          // flex-shrink-0 prevents the button from shrinking if title text is very long.
+          // Match Navbar button styling, and ensure smaller icon size (w-6 h-6)
           className="p-1 rounded-md text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 z-50 flex-shrink-0"
           aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
           onMouseDown={(e) => e.stopPropagation()} // Prevent parent div's onClick from triggering
         >
           {isOpen ? (
-            // Close icon (X) - from Navbar SVG
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            // Close icon (X) - from Navbar SVG, now w-6 h-6
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
           ) : (
-            // Hamburger icon - from Navbar SVG
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            // Hamburger icon - from Navbar SVG, now w-6 h-6
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path>
             </svg>
           )}
