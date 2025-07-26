@@ -13,7 +13,7 @@ export default function Sidebar({ isOpen, onClose, children }) {
   return (
     <div
       className={`fixed left-5 backdrop-blur bg-gray-100 bg-opacity-90 shadow-sm z-40 transition-all duration-300 ease-in-out flex flex-col overflow-hidden 
-                  ${isOpen ? 'rounded-lg' : 'rounded-full'}`} {/* Corrected line: removed extra '}' */}
+                  ${isOpen ? 'rounded-lg' : 'rounded-full'}`}
       style={{
         top: sidebarTop,
         width: isOpen ? expandedWidth : collapsedWidth,
