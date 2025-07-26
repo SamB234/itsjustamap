@@ -3,16 +3,18 @@ import React from 'react';
 export default function Sidebar({ isOpen, onClose, children }) {
   const collapsedHeight = '48px'; // Height of the "pill" when collapsed
   const expandedFullHeight = '300px'; // Full height when expanded (adjust as needed)
+  const sidebarWidth = '320px'; // Fixed width of the sidebar (even when collapsed horizontally)
 
   return (
     <div
-      className={`fixed top-[105px] left-5 right-5 bg-gray-100/85 backdrop-blur-md shadow-lg rounded-lg z-40 transition-all duration-300 ease-in-out flex flex-col`}
+      className={`fixed top-[105px] left-5 bg-gray-100/85 backdrop-blur-md shadow-lg rounded-lg z-40 transition-all duration-300 ease-in-out flex flex-col`}
       style={{
-        height: isOpen ? expandedFullHeight : collapsedHeight,
+        width: sidebarWidth, // Maintain a consistent width
+        height: isOpen ? expandedFullHeight : collapsedHeight, // Control height for vertical expansion
         overflowY: isOpen ? 'auto' : 'hidden', // Allow scrolling when open, hide overflow when closed
       }}
     >
-      {/* Toggle Button - positioned on the far right of the bar */}
+      {/* Toggle Button - positioned on the far right of the bar (within its fixed width) */}
       <button
         onClick={onClose} // This will toggle the 'isOpen' state in Map.jsx
         className="absolute top-2 right-4 p-2 rounded-full text-gray-600 hover:text-gray-900 font-bold text-xl leading-none transition-all duration-300 z-50"
