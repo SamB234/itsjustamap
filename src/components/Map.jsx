@@ -35,8 +35,8 @@ export default function Map() {
 
   const [selectedRadius, setSelectedRadius] = useState(5);
   
-  // State for controlling sidebar visibility - initial state false (closed)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
+  // State for controlling sidebar visibility - initial state set to true (expanded)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
 
   useEffect(() => {
     if (map.current) return;
@@ -344,13 +344,6 @@ export default function Map() {
     }));
   }, []);
 
-  // No longer needed to explicitly open/close from a separate button in Map.jsx
-  // but the state and handler are used by Sidebar
-  const closeSidebar = useCallback(() => {
-    setIsSidebarOpen(false);
-  }, []);
-
-  // For the specific user requirement, we need to toggle the sidebar
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen(prev => !prev);
   }, []);
@@ -359,11 +352,6 @@ export default function Map() {
   return (
     <>
       <div ref={mapContainer} className="absolute top-0 left-0 w-full h-full" />
-
-      {/* REMOVED: Info panel (Long/Lat/Zoom readout) */}
-      {/* <div className="absolute top-[75px] left-5 bg-white/85 px-3 py-2 rounded shadow-sm text-sm z-30 pointer-events-auto">
-        📍 Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}
-      </div> */}
 
       {/* Fixed center pin */}
       <div
@@ -515,7 +503,7 @@ export default function Map() {
         )}
 
         {/* Sidebar component */}
-        <Sidebar isOpen={isSidebarOpen} onClose={toggleSidebar}> {/* Changed onClose to toggleSidebar */}
+        <Sidebar isOpen={isSidebarOpen} onClose={toggleSidebar}>
           <p className="text-gray-700">This is where your trip planning tools will go!</p>
           <div className="mt-4 p-3 bg-white rounded-lg shadow-inner">
             <h3 className="font-semibold mb-2">Filters (Coming Soon)</h3>
