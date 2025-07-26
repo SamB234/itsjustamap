@@ -4,10 +4,11 @@ export default function Sidebar({ isOpen, onClose, children }) {
   const collapsedWidth = '56px'; // Width of the sidebar when collapsed (matches Navbar height)
   const expandedWidth = '320px'; // Desired full width when expanded
   const navbarHeight = '56px';   // Height of your Navbar (h-14 = 56px)
-  const paddingTopFromNavbar = '14px'; // Desired padding below Navbar (56px + 14px = 70px total top offset)
+  const paddingTopFromNavbar = '14px'; // Desired padding below Navbar
 
   // Calculate the available vertical space below the navbar for the fixed-height pill
   const availableHeight = `calc(100vh - ${navbarHeight} - ${paddingTopFromNavbar})`;
+  const headerHeightExpanded = '48px'; // Fixed height for the header when expanded (approx px-4 py-3 with text)
 
   return (
     <div
@@ -17,32 +18,23 @@ export default function Sidebar({ isOpen, onClose, children }) {
       className={`fixed left-5 backdrop-blur bg-gray-100 bg-opacity-90 shadow-sm z-40 transition-all duration-300 ease-in-out flex flex-col overflow-hidden 
                   ${isOpen ? 'rounded-lg' : 'rounded-r-lg'}`}
       style={{
-        top: `calc(${navbarHeight} + ${paddingTopFromNavbar})`, // Start below the navbar
+        top: `calc(${navbarHeight} + ${paddingTopFromNavbar})`, // Start below the navbar (70px total)
         height: availableHeight, // Fixed vertical height for the "pill" structure
         width: isOpen ? expandedWidth : collapsedWidth, // Animate width
       }}
       // OnClick for the entire div to toggle (only when collapsed)
+      // This allows clicking anywhere on the pill to expand it
       onClick={!isOpen ? onClose : undefined}
     >
-      {/* "Trip Planner" Heading: always visible, rotates and repositions when collapsed */}
-      <h2 
-        className={`font-semibold text-blue-700 whitespace-nowrap overflow-hidden text-ellipsis transition-all duration-300 flex-shrink-0
-                    ${isOpen 
-                      ? 'text-xl rotate-0 py-4 px-4' // Larger font, horizontal, with padding when open
-                      : 'text-base rotate-90 origin-bottom-left absolute left-10 top-1/2 -translate-y-1/2' // Smaller font, rotated, absolute position when collapsed
-                    }`}
-      >
-        Trip Planner
-      </h2>
-      
       {/* Toggle Button (Arrow / X): direct child of main div, always absolute positioned */}
       {/* Positions centrally in collapsed state, top-right in expanded state */}
       <button
-        onClick={onClose}
+        onClick={onClose} // This is the primary toggle function
         className={`p-1 rounded-md text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 z-50 flex-shrink-0 absolute
                     ${isOpen ? 'top-2 right-4' : 'top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2'}`} // Centered in collapsed, top-right in expanded
         aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
-        onMouseDown={(e) => e.stopPropagation()} // Prevent parent div's onClick from triggering
+        // IMPORTANT: Prevent button clicks from propagating to the parent div's onClick
+        onMouseDown={(e) => e.stopPropagation()} 
       >
         {isOpen ? (
           // Close icon (X)
@@ -57,13 +49,23 @@ export default function Sidebar({ isOpen, onClose, children }) {
         )}
       </button>
 
+      {/* Conditional rendering for "Trip Planner" heading when expanded */}
+      {/* It only appears when isOpen is true, without any animation/rotation */}
+      {isOpen && (
+        <div className="px-4 py-3 flex items-center" style={{ height: headerHeightExpanded }}> {/* py-3 with text-xl makes it approx 48px height */}
+          <h2 className="text-xl font-semibold text-blue-700 whitespace-nowrap overflow-hidden text-ellipsis">
+            Trip Planner
+          </h2>
+        </div>
+      )}
+
       {/* Sidebar Content - only visible/interactive when open */}
       <div 
         className={`flex-grow px-4 pb-4 overflow-y-auto ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         style={{
           // Calculate max-height for content, allowing it to scroll if it exceeds available space
-          // This allows content to dictate its own height up to the available vertical space, then scroll
-          maxHeight: isOpen ? `calc(${availableHeight} - ${56}px - 16px - 16px)` : '0', // total height - (top bar height 56px) - paddingTop - paddingBottom
+          // Subtract headerHeightExpanded ONLY if isOpen (as it's conditionally rendered)
+          maxHeight: isOpen ? `calc(${availableHeight} - ${headerHeightExpanded} - 16px - 16px)` : '0', 
           paddingTop: isOpen ? '16px' : '0', // Consistent internal padding
         }}
       >
