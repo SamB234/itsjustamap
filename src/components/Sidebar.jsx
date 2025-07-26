@@ -2,43 +2,82 @@ import React from 'react';
 
 export default function Sidebar({ isOpen, onClose, children }) {
   const collapsedHeight = '48px'; // Height of the "pill" when collapsed
-  const sidebarWidth = '320px'; // Fixed width of the sidebar
+  const sidebarWidth = '320px';   // Fixed width of the sidebar
+
+  // Determine the correct rounded class based on state
+  const roundedClass = isOpen ? 'rounded-lg' : 'rounded-full';
 
   return (
     <div
-      className={`fixed top-[70px] left-5 bg-gray-100/85 backdrop-blur-md shadow-lg z-40 transition-all duration-300 ease-in-out flex flex-col`}
-      // Conditional classes for roundedness: rounded-full when collapsed, rounded-lg when open
+      // Match Navbar styling: backdrop-blur bg-gray-100 bg-opacity-60 shadow-sm
+      // Position: top-[70px] left-5
+      className={`fixed top-[70px] left-5 backdrop-blur bg-gray-100 bg-opacity-60 shadow-sm z-40 transition-all duration-300 ease-in-out flex flex-col ${roundedClass}`}
       style={{
         width: sidebarWidth,
-        height: isOpen ? 'auto' : collapsedHeight, // 'auto' height when open
-        maxHeight: 'calc(100vh - 80px)', // Prevent it from going off-screen (adjust 80px based on actual navbar height + desired bottom padding)
-        overflowY: 'auto', // Always allow scrolling if content overflows even when it's 'auto' height
+        height: isOpen ? 'auto' : collapsedHeight,
+        maxHeight: 'calc(100vh - 80px)', // Maintain max height, but height is 'auto'
+        overflowY: isOpen ? 'auto' : 'hidden', // Only allow scroll when open, hide when collapsed
       }}
-      // Add onClick to the main div for toggling when collapsed
+      // OnClick for the entire div only when collapsed
       onClick={!isOpen ? onClose : undefined}
     >
       {/* Container for the "Filters" text and the toggle button */}
-      <div className={`flex items-center ${isOpen ? 'justify-end' : 'justify-between'} w-full relative h-[${collapsedHeight}]`}>
-        {/* "Filters" text - visible only when collapsed */}
+      <div className={`flex items-center w-full relative h-[${collapsedHeight}]`}>
+        {/* "Filters" text - visible only when collapsed, positioned absolutely */}
         {!isOpen && (
-          <span className="absolute left-4 text-gray-700 font-semibold pointer-events-none">Filters</span>
+          <span className="absolute left-5 text-blue-700 font-semibold text-lg whitespace-nowrap overflow-hidden pr-12 pointer-events-none">
+            Filters
+          </span>
         )}
         
-        {/* Toggle Button - always visible, positioned relative to its container */}
+        {/* Toggle Button - always visible, positioned on the right */}
         <button
           onClick={onClose} // This is the toggle function passed from Map.jsx
-          className={`p-2 rounded-full text-gray-600 hover:text-gray-900 font-bold text-xl leading-none transition-all duration-300 z-50 ${isOpen ? 'absolute top-2 right-4' : 'relative mr-4'}`}
+          className={`absolute top-1/2 -translate-y-1/2 ${isOpen ? 'right-4' : 'right-4'} text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 transition-all duration-300 z-50`}
           aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
-          // Prevent click from bubbling up to the parent div if it's the toggle button
+          // Stop propagation to prevent parent div's onClick when the button is clicked
           onMouseDown={(e) => e.stopPropagation()}
         >
-          {isOpen ? '×' : '☰'}
+          {isOpen ? (
+            // Close icon (X) - from Navbar
+            <svg
+              className="w-7 h-7"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M6 18L18 6M6 6l12 12"
+              ></path>
+            </svg>
+          ) : (
+            // Hamburger icon - from Navbar
+            <svg
+              className="w-7 h-7"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M4 6h16M4 12h16M4 18h16"
+              ></path>
+            </svg>
+          )}
         </button>
       </div>
 
       {/* Sidebar Content - only visible/interactive when open */}
+      {/* Added `pt-20` for generous top padding when open */}
       <div className={`flex-grow px-4 pb-4 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-           style={{ paddingTop: isOpen ? '10px' : '0' }} // Adjust padding top when open to prevent overlap with internal toggle button container
+           style={{ paddingTop: isOpen ? '20px' : '0' }} // Adjust padding top to account for button container height
       >
         <h2 className="text-xl font-semibold text-blue-700 mb-4 text-center">Trip Planner</h2>
         <div className="mt-8">
