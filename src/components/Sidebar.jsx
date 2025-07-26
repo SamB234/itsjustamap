@@ -7,7 +7,8 @@ export default function Sidebar({ isOpen, onClose, children }) {
 
   return (
     <div
-      className={`fixed top-5 left-5 bg-gray-100/85 backdrop-blur-md shadow-lg rounded-lg z-40 transition-all duration-300 ease-in-out flex flex-col`}
+      // Adjusted 'top' value to position it below the navbar with padding
+      className={`fixed top-[70px] left-5 bg-gray-100/85 backdrop-blur-md shadow-lg rounded-lg z-40 transition-all duration-300 ease-in-out flex flex-col`}
       style={{
         width: sidebarWidth, // Maintain a consistent width
         height: isOpen ? expandedFullHeight : collapsedHeight, // Control height for vertical expansion
@@ -16,7 +17,7 @@ export default function Sidebar({ isOpen, onClose, children }) {
     >
       {/* Toggle Button - positioned on the far right of the bar (within its fixed width) */}
       <button
-        onClick={onClose} // This is now the toggle function passed from Map.jsx
+        onClick={onClose} // This is the toggle function passed from Map.jsx
         className="absolute top-2 right-4 p-2 rounded-full text-gray-600 hover:text-gray-900 font-bold text-xl leading-none transition-all duration-300 z-50"
         aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
       >
