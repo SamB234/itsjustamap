@@ -2,6 +2,7 @@ import React from 'react';
 
 export default function Sidebar({ isOpen, onClose, children }) {
   const collapsedHeight = '48px'; // Height of the "pill" when collapsed
+  const expandedHeight = '300px'; // New fixed height when expanded (adjust as needed)
   const sidebarWidth = '320px';   // Fixed width of the sidebar
   const navbarHeight = '56px';    // Height of your Navbar (h-14 = 56px)
   const paddingTopFromNavbar = '14px'; // Desired padding below Navbar (56px + 14px = 70px total top offset)
@@ -9,14 +10,15 @@ export default function Sidebar({ isOpen, onClose, children }) {
   return (
     <div
       // Match Navbar styling: backdrop-blur bg-gray-100 bg-opacity-60 shadow-sm
+      // Position: Fixed, calculated based on Navbar height and desired padding
       // Conditional rounded classes: rounded-full when collapsed, rounded-lg when open
-      // overflow-hidden is crucial for corner rounding and preventing scrollbars/flicker
+      // Overflow-hidden on the main container ensures corners are smooth and no scrollbar appears on the main div
       className={`fixed left-5 backdrop-blur bg-gray-100 bg-opacity-60 shadow-sm z-40 transition-all duration-300 ease-in-out flex flex-col ${isOpen ? 'rounded-lg' : 'rounded-full'} overflow-hidden`}
       style={{
-        top: `calc(${navbarHeight} + ${paddingTopFromNavbar})`, // Dynamic top position
+        top: `calc(${navbarHeight} + ${paddingTopFromNavbar})`, // Dynamic top position (70px from top)
         width: sidebarWidth,
-        height: isOpen ? 'auto' : collapsedHeight, // 'auto' height when open
-        maxHeight: `calc(100vh - ${navbarHeight} - ${paddingTopFromNavbar} - 20px)`, // Max height to prevent overflowing screen
+        // Control height explicitly for transition
+        height: isOpen ? expandedHeight : collapsedHeight, 
       }}
       // OnClick for the entire div to toggle (only when collapsed)
       onClick={!isOpen ? onClose : undefined}
@@ -27,8 +29,6 @@ export default function Sidebar({ isOpen, onClose, children }) {
            style={{ height: collapsedHeight }}> {/* Fixed height for this top bar */}
 
         {/* Trip Planner Title - Always visible, left-justified with padding */}
-        {/* flex-grow pushes the button to the right. text-ellipsis handles overflow. */}
-        {/* text-base for smaller font size */}
         <h2 className="text-base font-semibold text-blue-700 whitespace-nowrap overflow-hidden text-ellipsis flex-grow">
           Trip Planner
         </h2>
@@ -36,7 +36,7 @@ export default function Sidebar({ isOpen, onClose, children }) {
         {/* Toggle Button - always visible, positioned on the right within its flex container */}
         <button
           onClick={onClose} // This is the toggle function passed from Map.jsx
-          // Match Navbar button styling, and ensure smaller icon size (w-6 h-6)
+          // Ensure specific sizing for burger/x icon (w-6 h-6)
           className="p-1 rounded-md text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 z-50 flex-shrink-0"
           aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
           onMouseDown={(e) => e.stopPropagation()} // Prevent parent div's onClick from triggering
@@ -56,12 +56,17 @@ export default function Sidebar({ isOpen, onClose, children }) {
       </div>
 
       {/* Sidebar Content - only visible/interactive when open */}
-      {/* Adjusted padding: pt-4, pb-4, px-4 to ensure consistent spacing when expanded */}
-      <div className={`flex-grow px-4 pb-4 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-           style={{ paddingTop: isOpen ? '16px' : '0' }} // Padding from the top bar when expanded
+      {/* Content overflow is handled here. Added `pt-4` and `pb-4` for consistent internal padding. */}
+      <div 
+        className={`px-4 pb-4 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        style={{
+          // Calculate max height for content based on total expanded height minus top bar height
+          maxHeight: `calc(${expandedHeight} - ${collapsedHeight})`, 
+          overflowY: 'auto', // Allow content to scroll if it exceeds its area
+          paddingTop: isOpen ? '16px' : '0', // Consistent internal padding from top bar
+        }}
       >
-        {/* Children content, e.g., filters */}
-        <div className="mt-2"> {/* Small margin for content below the direct padding */}
+        <div className="mt-2"> {/* Small top margin for children below the padding */}
           {children}
         </div>
       </div>
