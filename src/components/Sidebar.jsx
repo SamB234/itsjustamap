@@ -5,9 +5,9 @@ export default function Sidebar({ isOpen, onClose, children }) {
   const expandedWidth = '320px';    // Fixed width when expanded
   
   const navbarHeight = '56px';      // Height of your Navbar (h-14 = 56px)
-  const paddingTopFromNavbar = '14px'; // Desired padding below Navbar - CORRECTLY NAMED
+  const paddingTopFromNavbar = '14px'; // Desired padding below Navbar
 
-  // Calculate top position relative to navbar, using the CORRECT variable name
+  // Calculate top position relative to navbar
   const sidebarTop = `calc(${navbarHeight} + ${paddingTopFromNavbar})`;
 
   // Define the fixed height for the sidebar in BOTH states
@@ -17,26 +17,20 @@ export default function Sidebar({ isOpen, onClose, children }) {
   return (
     <div
       className={`fixed left-5 backdrop-blur bg-gray-100 bg-opacity-90 shadow-sm z-40 transition-all duration-300 ease-in-out flex flex-col overflow-hidden 
-                  ${isOpen ? 'rounded-lg' : 'rounded-r-lg'}`}
+                  ${isOpen ? 'rounded-lg' : 'rounded-lg'}`} {/* KEY CHANGE: Always rounded-lg for all corners */}
       style={{
         top: sidebarTop,
         width: isOpen ? expandedWidth : collapsedWidth, 
-        // Height is ALWAYS the fixed height
         height: fixedSidebarHeight, 
       }}
-      // onClick on the main div for expanding when collapsed (only the visible part)
-      // This allows clicking anywhere on the collapsed sidebar (which is now full height) to expand it
-      onClick={!isOpen ? onClose : undefined} 
+      // REMOVED onClick from the main div here. Only the button will be clickable.
     >
       {/* Main Content Wrapper - This div will control the visibility of the content */}
       <div 
         className={`flex flex-col flex-grow ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         style={{
-          // When collapsed, content is visually hidden (opacity 0), but its container
-          // still contributes to the overall flex layout within the fixedSidebarHeight.
-          // max-height here ensures content itself scrolls if it exceeds available space
-          maxHeight: '100%', // Allow content to take full height of its parent
-          overflowY: 'auto', // Allows internal scrolling if content exceeds fixedSidebarHeight
+          maxHeight: '100%', 
+          overflowY: 'auto', 
         }}
       >
         {/* "Trip Planner" Heading */}
@@ -58,10 +52,11 @@ export default function Sidebar({ isOpen, onClose, children }) {
       {/* Arrow (visible when collapsed) */}
       {!isOpen && (
         <button
-          onClick={onClose} 
+          onClick={onClose} // This is now the ONLY way to expand the sidebar
           className={`p-1 rounded-md text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 z-50 absolute 
                       top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2`} 
           aria-label="Open sidebar"
+          // onMouseDown stopPropagation is still good practice, but less critical now.
           onMouseDown={(e) => e.stopPropagation()} 
         >
           <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
