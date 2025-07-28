@@ -153,7 +153,6 @@ export default function Map() {
 
   // Effect to update curved lines on the map
   useEffect(() => {
-    // This ensures the style (and thus sources/layers) are completely ready.
     if (map.current && map.current.isStyleLoaded() && map.current.getSource(CURVED_LINE_SOURCE_ID)) {
       const lineFeatures = drawnLines.map(line => line.geojson);
       map.current.getSource(CURVED_LINE_SOURCE_ID).setData({
@@ -161,11 +160,9 @@ export default function Map() {
         features: lineFeatures
       });
     } else if (drawnLines.length > 0) {
-      // Optional: Log a warning if lines are drawn but map isn't ready
-      // This might happen on initial load before the map style is fully parsed.
       console.warn("Attempted to update curved lines but map or source not ready yet.");
     }
-  }, [drawnLines]); // Dependency array: run this effect when drawnLines changes
+  }, [drawnLines]);
 
   useEffect(() => {
     if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
@@ -305,32 +302,41 @@ export default function Map() {
     }
   }, []);
 
-  // START ADDITIONS FOR STEP 5: CONNECTION LOGIC
-  const handleConnectMarkers = useCallback(() => {
-    if (!activePopupData) return;
-    const currentPinIndex = activePopupData.pinIndex;
-
+  // REVISED: handleConnectMarkers to accept end marker data directly
+  const handleConnectMarkers = useCallback((endPinIndex = null, endPinCoordinates = null) => {
     if (connectionMode && connectingMarkerIndex !== null) {
-      // Complete connection
-      if (connectingMarkerIndex !== currentPinIndex) { // Don't allow connecting a marker to itself
+      // COMPLETE CONNECTION
+      if (endPinIndex === null || endPinCoordinates === null) {
+        console.warn("Attempted to complete connection without target pin data.");
+        setConnectionMode(false);
+        setConnectingMarkerIndex(null);
+        handleClosePopup(); // Close popup and reset
+        return;
+      }
+
+      if (connectingMarkerIndex !== endPinIndex) { // Don't allow connecting a marker to itself
         const startPin = droppedPins[connectingMarkerIndex];
-        const endPin = droppedPins[currentPinIndex];
+        const endPin = droppedPins[endPinIndex]; // Use endPinCoordinates for the latest clicked pin
         
         if (startPin && endPin) {
           const newLineGeoJSON = getCurvedLinePoints(startPin, endPin);
           setDrawnLines(prevLines => [...prevLines, {
-            id: `${connectingMarkerIndex}-${currentPinIndex}-${Date.now()}`, // Unique ID for the line
+            id: `${connectingMarkerIndex}-${endPinIndex}-${Date.now()}`, // Unique ID for the line
             start: connectingMarkerIndex,
-            end: currentPinIndex,
+            end: endPinIndex,
             geojson: newLineGeoJSON
           }]);
         }
+      } else {
+        console.log("Cannot connect a marker to itself.");
       }
       setConnectionMode(false);
       setConnectingMarkerIndex(null);
       handleClosePopup(); // Close popup after attempting connection
     } else {
-      // Start connection mode
+      // START CONNECTION MODE (This branch is called from the popup button)
+      if (!activePopupData) return; // Ensure there's an active pin to start from
+      const currentPinIndex = activePopupData.pinIndex;
       setConnectionMode(true);
       setConnectingMarkerIndex(currentPinIndex);
       // Update popup message to guide the user
@@ -341,44 +347,15 @@ export default function Map() {
         error: null,
       }));
     }
-  }, [connectionMode, connectingMarkerIndex, activePopupData, droppedPins, handleClosePopup]); // Added handleClosePopup to dependencies
+  }, [connectionMode, connectingMarkerIndex, activePopupData, droppedPins, handleClosePopup]);
 
 
+  // REVISED: handlePinClick to integrate connection mode more smoothly
   const handlePinClick = useCallback(
     async (pinCoordinates, index) => {
-      // If in connection mode and a start marker is selected, this click is to select the end marker.
       if (connectionMode && connectingMarkerIndex !== null) {
-        // Prevent connecting the same marker to itself if clicked again
-        if (connectingMarkerIndex === index) {
-            // Optionally, provide feedback that clicking the same marker does nothing in connection mode
-            console.log("Cannot connect a marker to itself.");
-            // Maybe close the connection mode if they click the same marker? Or do nothing.
-            // For now, let's keep the connection mode active.
-            return;
-        }
-        // If a different marker is clicked, attempt to complete the connection
-        // The handleConnectMarkers will handle updating drawnLines and resetting mode
-        // We pass the currently activePopupData's pinIndex, which is now the *target* for connection
-        // The handleConnectMarkers logic relies on activePopupData.pinIndex to be the *current* clicked pin
-        // So we need to ensure activePopupData is updated *before* calling handleConnectMarkers if not already.
-        // Or, better, refactor handleConnectMarkers to take `endPinIndex` as an argument.
-        // For simplicity now, let's just make sure activePopupData is set to the clicked pin.
-        
-        // Temporarily set the activePopupData to the clicked pin for handleConnectMarkers to pick it up
-        setActivePopupData({
-            pinIndex: index,
-            lng: pinCoordinates[0],
-            lat: pinCoordinates[1],
-            direction: 'Overview', // or any default, it won't be used for AI call immediately
-            placeName: await fetchPlaceName(pinCoordinates[0], pinCoordinates[1]),
-            loading: false,
-            aiContent: '',
-            error: null,
-            radius: null,
-        });
-        // Call handleConnectMarkers in a small timeout to allow state update to propagate
-        // This is a common pattern for chained state updates
-        setTimeout(() => handleConnectMarkers(), 0); 
+        // If in connection mode and a start marker is selected, this click is to select the end marker.
+        handleConnectMarkers(index, pinCoordinates); // Pass current clicked pin's index and coords
         return; // Stop further processing for the pin click
       }
 
@@ -418,7 +395,7 @@ export default function Map() {
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
-  }, []); // Dependencies for useCallback are correct here
+  }, []);
 
   const handleRemoveMarker = useCallback(() => {
     if (!activePopupData) return;
@@ -430,7 +407,12 @@ export default function Map() {
       // Filter out any lines connected to the removed marker
       setDrawnLines(prevLines => prevLines.filter(line => 
         line.start !== removedIndex && line.end !== removedIndex
-      ));
+      ).map(line => {
+        // Adjust indices for lines connected to markers *after* the removed one
+        const adjustedStart = line.start > removedIndex ? line.start - 1 : line.start;
+        const adjustedEnd = line.end > removedIndex ? line.end - 1 : line.end;
+        return { ...line, start: adjustedStart, end: adjustedEnd };
+      }));
       return newPins;
     });
     
@@ -438,6 +420,9 @@ export default function Map() {
     if (connectionMode && connectingMarkerIndex === activePopupData.pinIndex) {
       setConnectionMode(false);
       setConnectingMarkerIndex(null);
+    } else if (connectionMode && connectingMarkerIndex > activePopupData.pinIndex) {
+        // Adjust connectingMarkerIndex if a preceding marker was removed
+        setConnectingMarkerIndex(prevIndex => prevIndex - 1);
     }
     
     setActivePopupData(null);
@@ -446,41 +431,7 @@ export default function Map() {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
     setHoveredPinIndex(null);
-  }, [activePopupData, connectionMode, connectingMarkerIndex]); // Added connectionMode, connectingMarkerIndex to dependencies
-  // END ADDITIONS FOR STEP 5: CONNECTION LOGIC
-
-  const handleDirectionalPopupOpen = useCallback(
-    async (directionKey, pinCoordinates, index) => {
-      const [lng, lat] = pinCoordinates;
-      if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
-        console.error("Arrow clicked for pin with invalid coordinates:", { lng, lat });
-        return;
-      }
-
-      const placeName = await fetchPlaceName(lng, lat);
-      const direction = directionMap[directionKey] || directionKey;
-
-      setSelectedRadius(5);
-      setActivePopupData({
-        pinIndex: index,
-        lng,
-        lat,
-        direction,
-        placeName,
-        loading: false,
-        aiContent: 'Adjust radius and click "Explore" to get suggestions.',
-        error: null,
-        radius: 5,
-      });
-    },
-    [fetchPlaceName]
-  );
-
-  const handleExploreDirection = useCallback(() => {
-    if (!activePopupData) return;
-    const { pinIndex, placeName, direction, lng, lat } = activePopupData;
-    fetchAISuggestion(pinIndex, placeName, direction, lng, lat, selectedRadius);
-  }, [activePopupData, fetchAISuggestion, selectedRadius]);
+  }, [activePopupData, connectionMode, connectingMarkerIndex]);
 
   const handleRadiusChange = useCallback((event) => {
     const newRadius = Number(event.target.value);
@@ -526,7 +477,6 @@ export default function Map() {
 
         const point = map.current.project([pinLng, pinLat]);
         
-        // ADDED: Pulse animation logic
         const shouldPulse = connectionMode && index === connectingMarkerIndex;
 
         return (
@@ -541,7 +491,6 @@ export default function Map() {
             }}
           >
             <div
-              // ADDED: dynamic class for pulse
               className={`relative w-20 h-20 pointer-events-auto ${shouldPulse ? 'animate-pulse-pin' : ''}`}
               onMouseEnter={() => setHoveredPinIndex(index)}
               onMouseLeave={() => setHoveredPinIndex(null)}
@@ -550,7 +499,6 @@ export default function Map() {
               <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
                 📍
               </div>
-              {/* ADDED: Only show arrows if not in connection mode */}
               {hoveredPinIndex === index && !connectionMode && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin
@@ -640,11 +588,10 @@ export default function Map() {
                 </button>
               )}
               
-              {/* ADDED: Connect to Another Marker button logic */}
-              {droppedPins.length > 1 && ( // Only show if more than one pin exists
+              {droppedPins.length > 1 && (
                 <button
                   className="px-3 py-1 border border-purple-500 text-purple-600 rounded-full hover:bg-purple-50 transition"
-                  onClick={handleConnectMarkers}
+                  onClick={() => handleConnectMarkers()} // Call without args to start mode
                 >
                   {connectionMode && connectingMarkerIndex === activePopupData.pinIndex ? 'Connecting...' : 'Connect to Another Marker'}
                 </button>
