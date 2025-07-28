@@ -42,7 +42,6 @@ export default function Map() {
 
   const [drawnLines, setDrawnLines] = useState([]);
 
-  // ADDED: Connection Mode states
   const [connectionMode, setConnectionMode] = useState(false);
   const [connectingMarkerIndex, setConnectingMarkerIndex] = useState(null);
 
@@ -318,24 +317,67 @@ export default function Map() {
         return;
       }
 
-      const placeName = await fetchPlaceName(lng, lat);
-      const direction = 'Overview';
+      // MODIFIED: Handle connection mode first
+      if (connectionMode && connectingMarkerIndex !== null && connectingMarkerIndex !== index) {
+        // We are in connection mode, and this is the second marker click
+        const firstPinCoords = droppedPins[connectingMarkerIndex];
+        const secondPinCoords = pinCoordinates;
 
-      setSelectedRadius(5);
-      setActivePopupData({
-        pinIndex: index,
-        lng,
-        lat,
-        direction,
-        placeName,
-        loading: true,
-        aiContent: 'Generating overview...',
-        error: null,
-        radius: null,
-      });
-      fetchAISuggestion(index, placeName, direction, lng, lat, null);
+        // Generate curved line points (using the Bezier curve)
+        const curveCoords = getCurvedLinePoints(firstPinCoords, secondPinCoords);
+
+        // Create a GeoJSON Feature for the line
+        const newLine = {
+          id: `${connectingMarkerIndex}-${index}`, // Unique ID for the line
+          geojson: {
+            type: 'Feature',
+            geometry: {
+              type: 'LineString',
+              coordinates: curveCoords
+            },
+            properties: {
+              fromIndex: connectingMarkerIndex,
+              toIndex: index
+            }
+          }
+        };
+
+        // Add the new line to the drawnLines state
+        setDrawnLines(prevLines => [...prevLines, newLine]);
+
+        // Reset connection mode
+        setConnectionMode(false);
+        setConnectingMarkerIndex(null);
+        alert(`Connected Marker ${connectingMarkerIndex + 1} to Marker ${index + 1}!`);
+
+      } else if (connectionMode && connectingMarkerIndex === index) {
+        // User clicked the same marker they started connection from
+        alert('You clicked the same marker. Connection cancelled.');
+        setConnectionMode(false);
+        setConnectingMarkerIndex(null);
+        setActivePopupData(null); // Close popup if it was open from initial click
+      } else {
+        // Regular pin click: open popup or if already in connection mode,
+        // but clicked a different pin (handled above) or no connectingMarkerIndex set
+        const placeName = await fetchPlaceName(lng, lat);
+        const direction = 'Overview';
+
+        setSelectedRadius(5);
+        setActivePopupData({
+          pinIndex: index,
+          lng,
+          lat,
+          direction,
+          placeName,
+          loading: true,
+          aiContent: 'Generating overview...',
+          error: null,
+          radius: null,
+        });
+        fetchAISuggestion(index, placeName, direction, lng, lat, null);
+      }
     },
-    [fetchPlaceName, fetchAISuggestion]
+    [connectionMode, connectingMarkerIndex, droppedPins, fetchPlaceName, fetchAISuggestion, setDrawnLines]
   );
 
   const handleDirectionalPopupOpen = useCallback(
@@ -371,14 +413,13 @@ export default function Map() {
     fetchAISuggestion(pinIndex, placeName, direction, lng, lat, selectedRadius);
   }, [activePopupData, fetchAISuggestion, selectedRadius]);
 
-  // ADDED: Handler for "Connect to Another Marker" button
   const handleConnectToAnotherMarker = useCallback(() => {
     if (activePopupData) {
       setConnectionMode(true);
       setConnectingMarkerIndex(activePopupData.pinIndex);
       // Close the current popup as we're now in connection mode
       setActivePopupData(null);
-      alert('Connection Mode: Click another marker to connect!'); // Simple alert for now
+      alert('Connection Mode: Click another marker to connect!');
     }
   }, [activePopupData]);
 
@@ -389,6 +430,9 @@ export default function Map() {
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
+    // Also cancel connection mode if a popup is closed without completing a connection
+    setConnectionMode(false);
+    setConnectingMarkerIndex(null);
   }, []);
 
   const handleRemoveMarker = useCallback(() => {
@@ -399,13 +443,23 @@ export default function Map() {
     setDroppedPins((prevPins) =>
       prevPins.filter((_, index) => index !== removedIndex)
     );
-    // drawnLines adjustment for marker removal will be added later with full connection logic
+
+    // MODIFIED: Remove lines associated with the removed marker
+    setDrawnLines((prevLines) =>
+      prevLines.filter(line =>
+        line.geojson.properties.fromIndex !== removedIndex &&
+        line.geojson.properties.toIndex !== removedIndex
+      )
+    );
+
     setActivePopupData(null);
     setSelectedRadius(5);
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
     setHoveredPinIndex(null);
+    setConnectionMode(false); // Ensure connection mode is off
+    setConnectingMarkerIndex(null); // Clear connecting marker
   }, [activePopupData]);
 
   const handleRadiusChange = useCallback((event) => {
@@ -560,11 +614,10 @@ export default function Map() {
                   Explore {directionMap[activePopupData.direction] || activePopupData.direction}
                 </button>
               )}
-              {/* ADDED: Connect to Another Marker button back */}
               {(activePopupData.direction === 'Overview' || (!activePopupData.loading && !activePopupData.error && activePopupData.aiContent !== 'Adjust radius and click "Explore" to get suggestions.')) && (
                 <button
                   className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
-                  onClick={handleConnectToAnotherMarker} // Call the new handler
+                  onClick={handleConnectToAnotherMarker}
                 >
                   Connect to Another Marker
                 </button>
