@@ -1,12 +1,14 @@
 import React from 'react';
 
 export default function Sidebar({ isOpen, onClose, children }) {
-  const collapsedWidth = '56px'; 
-  const expandedWidth = '320px'; 
+  const collapsedWidth = '56px';    // Fixed width of the sidebar when collapsed
+  const collapsedHeight = '48px';   // Fixed height for the collapsed pill (to fit arrow)
+  const expandedWidth = '320px';    // Desired full width when expanded
   
-  const navbarHeight = '56px'; 
-  const paddingTopFromNavbar = '14px'; 
+  const navbarHeight = '56px';      // Height of your Navbar (h-14 = 56px)
+  const paddingTopFromNavbar = '14px'; // Desired padding below Navbar
 
+  // Calculate top position relative to navbar
   const sidebarTop = `calc(${navbarHeight} + ${paddingTopFromNavbar})`;
 
   return (
@@ -16,17 +18,20 @@ export default function Sidebar({ isOpen, onClose, children }) {
       style={{
         top: sidebarTop,
         width: isOpen ? expandedWidth : collapsedWidth, 
-        height: 'auto', 
-        maxHeight: `calc(100vh - ${sidebarTop} - 20px)`, 
+        // KEY CHANGE: Ensure minimum height for collapsed state, auto for expanded
+        height: isOpen ? 'auto' : collapsedHeight, 
+        minHeight: collapsedHeight, // Guarantee it's at least this height
+        maxHeight: `calc(100vh - ${sidebarTop} - 20px)`, // Prevents content from going off screen
       }}
-      // Re-added onClick for the main div (active only when collapsed)
-      // This allows clicking anywhere on the collapsed pill to expand it
+      // onClick on the main div is only for expanding when collapsed
       onClick={!isOpen ? onClose : undefined} 
     >
       {/* Main Content Wrapper */}
+      {/* This holds the actual content and will visually collapse/expand */}
       <div 
-        className={`flex flex-col transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        className={`flex flex-col transition-all duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         style={{
+          // When collapsed, maxHeight: 0 effectively hides content vertically
           maxHeight: isOpen ? 'none' : '0', 
           overflowY: 'auto', 
         }}
@@ -54,7 +59,6 @@ export default function Sidebar({ isOpen, onClose, children }) {
           className={`p-1 rounded-md text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 z-50 absolute 
                       top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2`} 
           aria-label="Open sidebar"
-          // IMPORTANT: Prevent button clicks from propagating to the parent div's onClick
           onMouseDown={(e) => e.stopPropagation()} 
         >
           <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
