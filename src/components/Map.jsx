@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ArrowPin from './ArrowPin';
-import { getArcPoints, getCirclePoints, getCurvedLinePoints } from './mapUtils'; // ADDED getCurvedLinePoints
+import { getArcPoints, getCirclePoints, getCurvedLinePoints } from './mapUtils';
 import Sidebar from './Sidebar';
 
 mapboxgl.accessToken =
@@ -20,7 +20,6 @@ const directionMap = {
 const ARC_SOURCE_ID = 'arc-source';
 const ARC_LAYER_ID = 'arc-layer';
 
-// ADDED new constants for curved lines
 const CURVED_LINE_SOURCE_ID = 'curved-line-source';
 const CURVED_LINE_LAYER_ID = 'curved-line-layer';
 
@@ -41,7 +40,6 @@ export default function Map() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // ADDED new state variables for connection mode and drawn lines
   const [connectionMode, setConnectionMode] = useState(false);
   const [connectingMarkerIndex, setConnectingMarkerIndex] = useState(null);
   const [drawnLines, setDrawnLines] = useState([]);
@@ -71,6 +69,7 @@ export default function Map() {
     });
 
     map.current.on('load', () => {
+      // Existing Arc Source and Layer additions
       if (!map.current.getSource(ARC_SOURCE_ID)) {
         map.current.addSource(ARC_SOURCE_ID, {
           type: 'geojson',
@@ -106,21 +105,53 @@ export default function Map() {
           }
         });
       }
-      // NO NEW SOURCE/LAYER ADDITIONS FOR CURVED LINES YET IN THIS STEP
+
+      // ADDED Curved Line Source and Layer
+      if (!map.current.getSource(CURVED_LINE_SOURCE_ID)) {
+        map.current.addSource(CURVED_LINE_SOURCE_ID, {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: []
+          }
+        });
+      }
+
+      if (!map.current.getLayer(CURVED_LINE_LAYER_ID)) {
+        map.current.addLayer({
+          id: CURVED_LINE_LAYER_ID,
+          type: 'line',
+          source: CURVED_LINE_SOURCE_ID,
+          layout: {
+            'line-join': 'round',
+            'line-cap': 'round'
+          },
+          paint: {
+            'line-color': '#FF8C00',
+            'line-width': 3,
+            'line-opacity': 0.8
+          }
+        });
+      }
     });
 
     return () => {
       if (map.current) {
+        // Existing Arc cleanup
         if (map.current.getLayer(`${ARC_LAYER_ID}-line`)) map.current.removeLayer(`${ARC_LAYER_ID}-line`);
         if (map.current.getLayer(ARC_LAYER_ID)) map.current.removeLayer(ARC_LAYER_ID);
         if (map.current.getSource(ARC_SOURCE_ID)) map.current.removeSource(ARC_SOURCE_ID);
-        // NO NEW SOURCE/LAYER REMOVALS FOR CURVED LINES YET IN THIS STEP
+
+        // ADDED Curved Line cleanup
+        if (map.current.getLayer(CURVED_LINE_LAYER_ID)) map.current.removeLayer(CURVED_LINE_LAYER_ID);
+        if (map.current.getSource(CURVED_LINE_SOURCE_ID)) map.current.removeSource(CURVED_LINE_SOURCE_ID);
+
         map.current.remove();
       }
     };
   }, []);
 
-  // NO NEW useEffect FOR DRAWN LINES YET IN THIS STEP
+  // No new useEffect for drawnLines yet in this step
   useEffect(() => {
     if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
       setPopupPos(null);
@@ -359,7 +390,6 @@ export default function Map() {
     setIsSidebarOpen(prev => !prev);
   }, []);
 
-  // NO NEW Callbacks related to connecting markers yet
 
   return (
     <>
@@ -388,9 +418,6 @@ export default function Map() {
 
         const point = map.current.project([pinLng, pinLat]);
 
-        // NO pulse animation logic yet
-        // const shouldPulse = connectionMode && index !== connectingMarkerIndex; 
-
         return (
           <div
             key={index}
@@ -403,7 +430,7 @@ export default function Map() {
             }}
           >
             <div
-              className={`relative w-20 h-20 pointer-events-auto`} // No dynamic class for pulse yet
+              className={`relative w-20 h-20 pointer-events-auto`}
               onMouseEnter={() => setHoveredPinIndex(index)}
               onMouseLeave={() => setHoveredPinIndex(null)}
               onClick={() => handlePinClick(pin, index)}
@@ -411,7 +438,7 @@ export default function Map() {
               <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
                 📍
               </div>
-              {hoveredPinIndex === index && ( // No connectionMode check yet
+              {hoveredPinIndex === index && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin
                     onArrowClick={(dir) => handleDirectionalPopupOpen(dir, pin, index)}
@@ -499,7 +526,6 @@ export default function Map() {
                   Explore {activePopupData.direction}
                 </button>
               )}
-              {/* No "Connect to Another Marker" button logic yet */}
               {activePopupData.direction === 'Overview' || (activePopupData.direction !== 'Overview' && !activePopupData.loading && !activePopupData.error && activePopupData.aiContent !== 'Adjust radius and click "Explore" to get suggestions.') ? (
                 <button
                   className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
