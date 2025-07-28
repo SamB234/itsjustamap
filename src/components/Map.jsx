@@ -2,8 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ArrowPin from './ArrowPin';
-// IMPORTANT: Ensure getCurvedLinePoints is correctly imported and exported from mapUtils.js
-import { getArcPoints, getCirclePoints, getCurvedLinePoints } from './mapUtils'; // Make sure getCurvedLinePoints is here!
+import { getArcPoints, getCirclePoints, getCurvedLinePoints } from './mapUtils';
 import Sidebar from './Sidebar';
 
 mapboxgl.accessToken =
@@ -152,24 +151,21 @@ export default function Map() {
     };
   }, []);
 
-  // Effect to update curved lines on the map
+  // ADDED: Effect to update curved lines on the map
   useEffect(() => {
-    console.log("useEffect [drawnLines] triggered. drawnLines count:", drawnLines.length);
+    // This ensures the style (and thus sources/layers) are completely ready.
     if (map.current && map.current.isStyleLoaded() && map.current.getSource(CURVED_LINE_SOURCE_ID)) {
       const lineFeatures = drawnLines.map(line => line.geojson);
-      try {
-        map.current.getSource(CURVED_LINE_SOURCE_ID).setData({
-          type: 'FeatureCollection',
-          features: lineFeatures
-        });
-        console.log("Curved line source updated successfully.");
-      } catch (e) {
-        console.error("Error setting data for curved line source:", e);
-      }
+      map.current.getSource(CURVED_LINE_SOURCE_ID).setData({
+        type: 'FeatureCollection',
+        features: lineFeatures
+      });
     } else if (drawnLines.length > 0) {
-      console.warn("Attempted to update curved lines but map or source not ready yet. drawnLines:", drawnLines);
+      // Optional: Log a warning if lines are drawn but map isn't ready
+      // This might happen on initial load before the map style is fully parsed.
+      console.warn("Attempted to update curved lines but map or source not ready yet.");
     }
-  }, [drawnLines]);
+  }, [drawnLines]); // Dependency array: run this effect when drawnLines changes
 
   useEffect(() => {
     if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
@@ -309,90 +305,8 @@ export default function Map() {
     }
   }, []);
 
-  const handleConnectMarkers = useCallback((endPinIndex = null, endPinCoordinates = null) => {
-    console.log("handleConnectMarkers called. connectionMode:", connectionMode, "connectingMarkerIndex:", connectingMarkerIndex, "endPinIndex:", endPinIndex);
-
-    if (connectionMode && connectingMarkerIndex !== null) {
-      // COMPLETE CONNECTION
-      if (endPinIndex === null || endPinCoordinates === null) {
-        console.error("Attempted to complete connection without target pin data. Resetting mode.");
-        setConnectionMode(false);
-        setConnectingMarkerIndex(null);
-        handleClosePopup();
-        return;
-      }
-
-      if (connectingMarkerIndex === endPinIndex) {
-        console.log("Cannot connect a marker to itself. Connection mode remains active for now.");
-        // We could also reset connection mode here if clicking same marker cancels.
-        return;
-      }
-
-      const startPin = droppedPins[connectingMarkerIndex];
-      const endPin = droppedPins[endPinIndex];
-      
-      console.log("Connecting from pin", connectingMarkerIndex, startPin, "to pin", endPinIndex, endPin);
-
-      if (startPin && Array.isArray(startPin) && startPin.length === 2 &&
-          endPin && Array.isArray(endPin) && endPin.length === 2) {
-        try {
-          // ENSURE getCurvedLinePoints IS CORRECTLY IMPORTED AND FUNCTIONAL
-          const newLineGeoJSON = getCurvedLinePoints(startPin, endPin);
-          console.log("Generated GeoJSON for new line:", newLineGeoJSON);
-
-          if (newLineGeoJSON && newLineGeoJSON.type === 'Feature' && newLineGeoJSON.geometry) {
-            setDrawnLines(prevLines => [...prevLines, {
-              id: `${connectingMarkerIndex}-${endPinIndex}-${Date.now()}`,
-              start: connectingMarkerIndex,
-              end: endPinIndex,
-              geojson: newLineGeoJSON
-            }]);
-            console.log("Line added to drawnLines state.");
-          } else {
-            console.error("getCurvedLinePoints returned invalid GeoJSON:", newLineGeoJSON);
-          }
-        } catch (error) {
-          console.error("Error calling getCurvedLinePoints:", error);
-          // If getCurvedLinePoints is the problem, this catch block will activate.
-          // It's vital to check Render logs for this error message.
-        }
-      } else {
-        console.error("Invalid start or end pin coordinates for connection:", { startPin, endPin });
-      }
-      setConnectionMode(false);
-      setConnectingMarkerIndex(null);
-      handleClosePopup();
-    } else {
-      // START CONNECTION MODE (Called from the "Connect to Another Marker" button on active popup)
-      if (!activePopupData) {
-        console.error("No active popup data to start connection mode.");
-        return;
-      }
-      const currentPinIndex = activePopupData.pinIndex;
-      setConnectionMode(true);
-      setConnectingMarkerIndex(currentPinIndex);
-      setActivePopupData(prev => ({
-        ...prev,
-        aiContent: 'Select another marker to connect to...',
-        loading: false,
-        error: null,
-      }));
-      console.log("Connection mode started. Connecting from pin:", currentPinIndex);
-    }
-  }, [connectionMode, connectingMarkerIndex, activePopupData, droppedPins, handleClosePopup]);
-
-
   const handlePinClick = useCallback(
     async (pinCoordinates, index) => {
-      console.log("Pin clicked:", index, pinCoordinates, "Connection Mode:", connectionMode, "Connecting from:", connectingMarkerIndex);
-
-      if (connectionMode && connectingMarkerIndex !== null) {
-        // If in connection mode and a start marker is selected, this click is to select the end marker.
-        handleConnectMarkers(index, pinCoordinates);
-        return;
-      }
-
-      // Existing logic for non-connection mode pin click
       const [lng, lat] = pinCoordinates;
       if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
         console.error("Clicked pin has invalid coordinates:", { lng, lat });
@@ -416,15 +330,46 @@ export default function Map() {
       });
       fetchAISuggestion(index, placeName, direction, lng, lat, null);
     },
-    [fetchPlaceName, fetchAISuggestion, connectionMode, connectingMarkerIndex, handleConnectMarkers]
+    [fetchPlaceName, fetchAISuggestion]
   );
 
+  const handleDirectionalPopupOpen = useCallback(
+    async (directionKey, pinCoordinates, index) => {
+      const [lng, lat] = pinCoordinates;
+      if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
+        console.error("Arrow clicked for pin with invalid coordinates:", { lng, lat });
+        return;
+      }
+
+      const placeName = await fetchPlaceName(lng, lat);
+      const direction = directionMap[directionKey] || directionKey;
+
+      setSelectedRadius(5);
+      setActivePopupData({
+        pinIndex: index,
+        lng,
+        lat,
+        direction,
+        placeName,
+        loading: false,
+        aiContent: 'Adjust radius and click "Explore" to get suggestions.',
+        error: null,
+        radius: 5,
+      });
+    },
+    [fetchPlaceName]
+  );
+
+  const handleExploreDirection = useCallback(() => {
+    if (!activePopupData) return;
+    const { pinIndex, placeName, direction, lng, lat } = activePopupData;
+    fetchAISuggestion(pinIndex, placeName, direction, lng, lat, selectedRadius);
+  }, [activePopupData, fetchAISuggestion, selectedRadius]);
+
+
   const handleClosePopup = useCallback(() => {
-    console.log("Closing popup. Resetting connection mode if active.");
     setActivePopupData(null);
     setSelectedRadius(5);
-    setConnectionMode(false);
-    setConnectingMarkerIndex(null);
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
@@ -433,46 +378,16 @@ export default function Map() {
   const handleRemoveMarker = useCallback(() => {
     if (!activePopupData) return;
 
-    const removedIndex = activePopupData.pinIndex;
-    console.log("Attempting to remove marker at index:", removedIndex);
-
-    setDroppedPins((prevPins) => {
-      const newPins = prevPins.filter((_, index) => index !== removedIndex);
-      console.log("Dropped pins after removal:", newPins);
-      return newPins;
-    });
-    
-    setDrawnLines(prevLines => {
-      const filteredLines = prevLines.filter(line => 
-        line.start !== removedIndex && line.end !== removedIndex
-      ).map(line => {
-        // Adjust indices for lines connected to markers *after* the removed one
-        const adjustedStart = line.start > removedIndex ? line.start - 1 : line.start;
-        const adjustedEnd = line.end > removedIndex ? line.end - 1 : line.end;
-        return { ...line, start: adjustedStart, end: adjustedEnd };
-      });
-      console.log("Drawn lines after removal and re-indexing:", filteredLines);
-      return filteredLines;
-    });
-    
-    // Reset connection mode if the connecting marker is removed
-    if (connectionMode && connectingMarkerIndex === removedIndex) {
-      console.log("Connecting marker removed. Resetting connection mode.");
-      setConnectionMode(false);
-      setConnectingMarkerIndex(null);
-    } else if (connectionMode && connectingMarkerIndex > removedIndex) {
-        console.log("Adjusting connectingMarkerIndex due to removal of a preceding marker.");
-        setConnectingMarkerIndex(prevIndex => prevIndex - 1);
-    }
-    
+    setDroppedPins((prevPins) =>
+      prevPins.filter((_, index) => index !== activePopupData.pinIndex)
+    );
     setActivePopupData(null);
     setSelectedRadius(5);
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
     setHoveredPinIndex(null);
-    console.log("Marker removal process complete.");
-  }, [activePopupData, connectionMode, connectingMarkerIndex]);
+  }, [activePopupData]);
 
   const handleRadiusChange = useCallback((event) => {
     const newRadius = Number(event.target.value);
@@ -517,8 +432,6 @@ export default function Map() {
         }
 
         const point = map.current.project([pinLng, pinLat]);
-        
-        const shouldPulse = connectionMode && index === connectingMarkerIndex;
 
         return (
           <div
@@ -532,7 +445,7 @@ export default function Map() {
             }}
           >
             <div
-              className={`relative w-20 h-20 pointer-events-auto ${shouldPulse ? 'animate-pulse-pin' : ''}`}
+              className={`relative w-20 h-20 pointer-events-auto`}
               onMouseEnter={() => setHoveredPinIndex(index)}
               onMouseLeave={() => setHoveredPinIndex(null)}
               onClick={() => handlePinClick(pin, index)}
@@ -540,7 +453,7 @@ export default function Map() {
               <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
                 📍
               </div>
-              {hoveredPinIndex === index && !connectionMode && (
+              {hoveredPinIndex === index && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin
                     onArrowClick={(dir) => handleDirectionalPopupOpen(dir, pin, index)}
@@ -628,15 +541,14 @@ export default function Map() {
                   Explore {activePopupData.direction}
                 </button>
               )}
-              
-              {droppedPins.length > 1 && (
+              {activePopupData.direction === 'Overview' || (activePopupData.direction !== 'Overview' && !activePopupData.loading && !activePopupData.error && activePopupData.aiContent !== 'Adjust radius and click "Explore" to get suggestions.') ? (
                 <button
-                  className="px-3 py-1 border border-purple-500 text-purple-600 rounded-full hover:bg-purple-50 transition"
-                  onClick={() => handleConnectMarkers()}
+                  className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
+                  onClick={() => alert('Connect to Another Marker')}
                 >
-                  {connectionMode && connectingMarkerIndex === activePopupData.pinIndex ? 'Connecting...' : 'Connect to Another Marker'}
+                  Connect to Another Marker
                 </button>
-              )}
+              ) : null}
               <button
                 className="px-3 py-1 border border-red-500 text-red-600 rounded-full hover:bg-red-50 transition"
                 onClick={handleRemoveMarker}
