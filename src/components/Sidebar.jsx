@@ -18,20 +18,22 @@ export default function Sidebar({ isOpen, onClose, children }) {
       style={{
         top: sidebarTop,
         width: isOpen ? expandedWidth : collapsedWidth, 
-        // KEY CHANGE: Ensure minimum height for collapsed state, auto for expanded
+        // THIS IS THE KEY: Strictly control height to ensure collapsed state is visible
         height: isOpen ? 'auto' : collapsedHeight, 
-        minHeight: collapsedHeight, // Guarantee it's at least this height
+        minHeight: collapsedHeight, // Guarantee a minimum height
         maxHeight: `calc(100vh - ${sidebarTop} - 20px)`, // Prevents content from going off screen
       }}
-      // onClick on the main div is only for expanding when collapsed
+      // onClick on the main div for expanding when collapsed (only the visible part)
       onClick={!isOpen ? onClose : undefined} 
     >
-      {/* Main Content Wrapper */}
-      {/* This holds the actual content and will visually collapse/expand */}
+      {/* Main Content Wrapper - This div's visibility and dimensions are strictly controlled.
+        It will hide content when collapsed, but its parent (the sidebar) will maintain height.
+      */}
       <div 
-        className={`flex flex-col transition-all duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        className={`flex flex-col ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none overflow-hidden'}`}
         style={{
-          // When collapsed, maxHeight: 0 effectively hides content vertically
+          // When collapsed, content max-height is 0, so it completely hides.
+          // No transition on this part, the main sidebar transition handles it.
           maxHeight: isOpen ? 'none' : '0', 
           overflowY: 'auto', 
         }}
