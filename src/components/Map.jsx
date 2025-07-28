@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ArrowPin from './ArrowPin';
-import { getArcPoints, getCirclePoints, getCurvedLinePoints } from './mapUtils';
+// ONLY import functions related to arcs and circles for now
+import { getArcPoints, getCirclePoints } from './mapUtils';
 import Sidebar from './Sidebar';
 
 mapboxgl.accessToken =
@@ -20,8 +21,7 @@ const directionMap = {
 const ARC_SOURCE_ID = 'arc-source';
 const ARC_LAYER_ID = 'arc-layer';
 
-const CURVED_LINE_SOURCE_ID = 'curved-line-source';
-const CURVED_LINE_LAYER_ID = 'curved-line-layer';
+// REMOVED: CURVED_LINE_SOURCE_ID and CURVED_LINE_LAYER_ID constants
 
 export default function Map() {
   const mapContainer = useRef(null);
@@ -40,9 +40,7 @@ export default function Map() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  const [connectionMode, setConnectionMode] = useState(false);
-  const [connectingMarkerIndex, setConnectingMarkerIndex] = useState(null);
-  const [drawnLines, setDrawnLines] = useState([]);
+  // REMOVED: connectionMode, connectingMarkerIndex, drawnLines states
 
   useEffect(() => {
     if (map.current) return;
@@ -106,33 +104,7 @@ export default function Map() {
         });
       }
 
-      // Curved Line Source and Layer
-      if (!map.current.getSource(CURVED_LINE_SOURCE_ID)) {
-        map.current.addSource(CURVED_LINE_SOURCE_ID, {
-          type: 'geojson',
-          data: {
-            type: 'FeatureCollection',
-            features: []
-          }
-        });
-      }
-
-      if (!map.current.getLayer(CURVED_LINE_LAYER_ID)) {
-        map.current.addLayer({
-          id: CURVED_LINE_LAYER_ID,
-          type: 'line',
-          source: CURVED_LINE_SOURCE_ID,
-          layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
-          },
-          paint: {
-            'line-color': '#FF8C00',
-            'line-width': 3,
-            'line-opacity': 0.8
-          }
-        });
-      }
+      // REMOVED: Curved Line Source and Layer setup
     });
 
     return () => {
@@ -142,30 +114,14 @@ export default function Map() {
         if (map.current.getLayer(ARC_LAYER_ID)) map.current.removeLayer(ARC_LAYER_ID);
         if (map.current.getSource(ARC_SOURCE_ID)) map.current.removeSource(ARC_SOURCE_ID);
 
-        // Curved Line cleanup
-        if (map.current.getLayer(CURVED_LINE_LAYER_ID)) map.current.removeLayer(CURVED_LINE_LAYER_ID);
-        if (map.current.getSource(CURVED_LINE_SOURCE_ID)) map.current.removeSource(CURVED_LINE_SOURCE_ID);
+        // REMOVED: Curved Line cleanup
 
         map.current.remove();
       }
     };
   }, []);
 
-  // ADDED: Effect to update curved lines on the map
-  useEffect(() => {
-    // This ensures the style (and thus sources/layers) are completely ready.
-    if (map.current && map.current.isStyleLoaded() && map.current.getSource(CURVED_LINE_SOURCE_ID)) {
-      const lineFeatures = drawnLines.map(line => line.geojson);
-      map.current.getSource(CURVED_LINE_SOURCE_ID).setData({
-        type: 'FeatureCollection',
-        features: lineFeatures
-      });
-    } else if (drawnLines.length > 0) {
-      // Optional: Log a warning if lines are drawn but map isn't ready
-      // This might happen on initial load before the map style is fully parsed.
-      console.warn("Attempted to update curved lines but map or source not ready yet.");
-    }
-  }, [drawnLines]); // Dependency array: run this effect when drawnLines changes
+  // REMOVED: Effect to update curved lines on the map (due to drawnLines state)
 
   useEffect(() => {
     if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
@@ -501,7 +457,7 @@ export default function Map() {
             <div className="text-sm text-gray-500 mb-2">
               {activePopupData.direction === 'Overview'
                 ? 'Discover this area'
-                : `Explore toward the ${activePopupData.direction}`}
+                : `Explore toward the ${directionMap[activePopupData.direction] || activePopupData.direction}`}
             </div>
 
             {/* Radius Slider for directional responses */}
@@ -538,17 +494,10 @@ export default function Map() {
                   className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-700 hover:text-gray-100 transition"
                   onClick={handleExploreDirection}
                 >
-                  Explore {activePopupData.direction}
+                  Explore {directionMap[activePopupData.direction] || activePopupData.direction}
                 </button>
               )}
-              {activePopupData.direction === 'Overview' || (activePopupData.direction !== 'Overview' && !activePopupData.loading && !activePopupData.error && activePopupData.aiContent !== 'Adjust radius and click "Explore" to get suggestions.') ? (
-                <button
-                  className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
-                  onClick={() => alert('Connect to Another Marker')}
-                >
-                  Connect to Another Marker
-                </button>
-              ) : null}
+              {/* REMOVED: "Connect to Another Marker" button */}
               <button
                 className="px-3 py-1 border border-red-500 text-red-600 rounded-full hover:bg-red-50 transition"
                 onClick={handleRemoveMarker}
