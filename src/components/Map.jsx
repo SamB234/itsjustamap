@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ArrowPin from './ArrowPin';
-// UPDATED: Now importing getCurvedLinePoints as well
 import { getArcPoints, getCirclePoints, getCurvedLinePoints } from './mapUtils';
 import Sidebar from './Sidebar';
 
@@ -21,7 +20,6 @@ const directionMap = {
 const ARC_SOURCE_ID = 'arc-source';
 const ARC_LAYER_ID = 'arc-layer';
 
-// ADDED: Constants for curved lines
 const CURVED_LINE_SOURCE_ID = 'curved-line-source';
 const CURVED_LINE_LAYER_ID = 'curved-line-layer';
 
@@ -42,10 +40,11 @@ export default function Map() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // ADDED: State for drawn lines
   const [drawnLines, setDrawnLines] = useState([]);
 
-  // Note: connectionMode and connectingMarkerIndex states are still REMOVED for this phase.
+  // ADDED: Connection Mode states
+  const [connectionMode, setConnectionMode] = useState(false);
+  const [connectingMarkerIndex, setConnectingMarkerIndex] = useState(null);
 
   useEffect(() => {
     if (map.current) return;
@@ -109,7 +108,7 @@ export default function Map() {
         });
       }
 
-      // ADDED: Curved Line Source and Layer setup
+      // Curved Line Source and Layer
       if (!map.current.getSource(CURVED_LINE_SOURCE_ID)) {
         map.current.addSource(CURVED_LINE_SOURCE_ID, {
           type: 'geojson',
@@ -145,7 +144,7 @@ export default function Map() {
         if (map.current.getLayer(ARC_LAYER_ID)) map.current.removeLayer(ARC_LAYER_ID);
         if (map.current.getSource(ARC_SOURCE_ID)) map.current.removeSource(ARC_SOURCE_ID);
 
-        // ADDED: Curved Line cleanup
+        // Curved Line cleanup
         if (map.current.getLayer(CURVED_LINE_LAYER_ID)) map.current.removeLayer(CURVED_LINE_LAYER_ID);
         if (map.current.getSource(CURVED_LINE_SOURCE_ID)) map.current.removeSource(CURVED_LINE_SOURCE_ID);
 
@@ -154,7 +153,7 @@ export default function Map() {
     };
   }, []);
 
-  // ADDED: Effect to update curved lines on the map based on `drawnLines` state
+  // Effect to update curved lines on the map based on `drawnLines` state
   useEffect(() => {
     console.log("useEffect [drawnLines] triggered. drawnLines count:", drawnLines.length);
     if (map.current && map.current.isStyleLoaded() && map.current.getSource(CURVED_LINE_SOURCE_ID)) {
@@ -171,8 +170,7 @@ export default function Map() {
     } else if (drawnLines.length > 0) {
       console.warn("Attempted to update curved lines but map or source not ready yet. drawnLines:", drawnLines);
     }
-  }, [drawnLines]); // Dependency array: run this effect when drawnLines changes
-
+  }, [drawnLines]);
 
   useEffect(() => {
     if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
@@ -373,6 +371,17 @@ export default function Map() {
     fetchAISuggestion(pinIndex, placeName, direction, lng, lat, selectedRadius);
   }, [activePopupData, fetchAISuggestion, selectedRadius]);
 
+  // ADDED: Handler for "Connect to Another Marker" button
+  const handleConnectToAnotherMarker = useCallback(() => {
+    if (activePopupData) {
+      setConnectionMode(true);
+      setConnectingMarkerIndex(activePopupData.pinIndex);
+      // Close the current popup as we're now in connection mode
+      setActivePopupData(null);
+      alert('Connection Mode: Click another marker to connect!'); // Simple alert for now
+    }
+  }, [activePopupData]);
+
 
   const handleClosePopup = useCallback(() => {
     setActivePopupData(null);
@@ -380,7 +389,6 @@ export default function Map() {
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
-    // No connection mode state reset here yet
   }, []);
 
   const handleRemoveMarker = useCallback(() => {
@@ -391,7 +399,7 @@ export default function Map() {
     setDroppedPins((prevPins) =>
       prevPins.filter((_, index) => index !== removedIndex)
     );
-    // REMOVED: Adjust drawnLines logic for now. Will add back with connection.
+    // drawnLines adjustment for marker removal will be added later with full connection logic
     setActivePopupData(null);
     setSelectedRadius(5);
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
@@ -552,7 +560,15 @@ export default function Map() {
                   Explore {directionMap[activePopupData.direction] || activePopupData.direction}
                 </button>
               )}
-              {/* REMOVED: "Connect to Another Marker" button (for now) */}
+              {/* ADDED: Connect to Another Marker button back */}
+              {(activePopupData.direction === 'Overview' || (!activePopupData.loading && !activePopupData.error && activePopupData.aiContent !== 'Adjust radius and click "Explore" to get suggestions.')) && (
+                <button
+                  className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
+                  onClick={handleConnectToAnotherMarker} // Call the new handler
+                >
+                  Connect to Another Marker
+                </button>
+              )}
               <button
                 className="px-3 py-1 border border-red-500 text-red-600 rounded-full hover:bg-red-50 transition"
                 onClick={handleRemoveMarker}
