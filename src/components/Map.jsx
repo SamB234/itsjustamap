@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ArrowPin from './ArrowPin';
-import { getArcPoints, getCirclePoints } from './mapUtils'; // Make sure mapUtils is correctly updated
-import Sidebar from './Sidebar'; // Import Sidebar component
+// Ensure getCurvedLinePoints is imported from mapUtils
+import { getArcPoints, getCirclePoints, getCurvedLinePoints } from './mapUtils'; 
+import Sidebar from './Sidebar';
 
 mapboxgl.accessToken =
   'pk.eyJ1Ijoic2FtYjIzNCIsImEiOiJjbWRkZ25xcmcwNHhvMmxxdGU3c2J0eTZnIn0.j5NEdvNhU_eZ1tirQpKEAA';
@@ -12,13 +13,17 @@ const API_BASE_URL = 'https://itsjustamap-api-proxy.onrender.com';
 
 const directionMap = {
   N: 'North',
-  S: 'South', // Corrected this one as it was 'East' before
+  S: 'South', 
   E: 'East',
   W: 'West',
 };
 
 const ARC_SOURCE_ID = 'arc-source';
 const ARC_LAYER_ID = 'arc-layer';
+
+// New constants for curved lines
+const CURVED_LINE_SOURCE_ID = 'curved-line-source';
+const CURVED_LINE_LAYER_ID = 'curved-line-layer';
 
 export default function Map() {
   const mapContainer = useRef(null);
@@ -35,10 +40,12 @@ export default function Map() {
 
   const [selectedRadius, setSelectedRadius] = useState(5);
   
-  // State for controlling sidebar visibility
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // NO connection mode states yet in this temporary revert
+  // --- NEW STATE FOR CONNECTION MODE ---
+  const [connectionMode, setConnectionMode] = useState(false);
+  const [connectingMarkerIndex, setConnectingMarkerIndex] = useState(null);
+  const [drawnLines, setDrawnLines] = useState([]); // Stores { fromIndex, toIndex, geojson }
 
   useEffect(() => {
     if (map.current) return;
@@ -65,6 +72,7 @@ export default function Map() {
     });
 
     map.current.on('load', () => {
+      // Add Arc Source and Layer
       if (!map.current.getSource(ARC_SOURCE_ID)) {
         map.current.addSource(ARC_SOURCE_ID, {
           type: 'geojson',
@@ -100,17 +108,62 @@ export default function Map() {
           }
         });
       }
+
+      // --- NEW: Add Curved Line Source and Layer ---
+      if (!map.current.getSource(CURVED_LINE_SOURCE_ID)) {
+        map.current.addSource(CURVED_LINE_SOURCE_ID, {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: []
+          }
+        });
+      }
+
+      if (!map.current.getLayer(CURVED_LINE_LAYER_ID)) {
+        map.current.addLayer({
+          id: CURVED_LINE_LAYER_ID,
+          type: 'line', // Changed from 'fill' to 'line'
+          source: CURVED_LINE_SOURCE_ID,
+          layout: {
+            'line-join': 'round',
+            'line-cap': 'round'
+          },
+          paint: {
+            'line-color': '#FF8C00', // Orange color for flight lines
+            'line-width': 3,
+            'line-opacity': 0.8
+          }
+        });
+      }
     });
 
     return () => {
       if (map.current) {
+        // Clean up Arc layers
         if (map.current.getLayer(`${ARC_LAYER_ID}-line`)) map.current.removeLayer(`${ARC_LAYER_ID}-line`);
         if (map.current.getLayer(ARC_LAYER_ID)) map.current.removeLayer(ARC_LAYER_ID);
         if (map.current.getSource(ARC_SOURCE_ID)) map.current.removeSource(ARC_SOURCE_ID);
+        
+        // Clean up Curved Line layers
+        if (map.current.getLayer(CURVED_LINE_LAYER_ID)) map.current.removeLayer(CURVED_LINE_LAYER_ID);
+        if (map.current.getSource(CURVED_LINE_SOURCE_ID)) map.current.removeSource(CURVED_LINE_SOURCE_ID);
+        
         map.current.remove();
       }
     };
   }, []);
+
+  // Effect to update curved lines on the map
+  useEffect(() => {
+    if (map.current && map.current.getSource(CURVED_LINE_SOURCE_ID)) {
+      const lineFeatures = drawnLines.map(line => line.geojson);
+      map.current.getSource(CURVED_LINE_SOURCE_ID).setData({
+        type: 'FeatureCollection',
+        features: lineFeatures
+      });
+    }
+  }, [drawnLines]); // Redraw lines whenever drawnLines state changes
 
   useEffect(() => {
     if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
@@ -133,7 +186,8 @@ export default function Map() {
             geojson = { type: 'FeatureCollection', features: [] };
         } else {
             const centerCoords = [activePopupData.lng, activePopupData.lat];
-            const arcPoints = getArcPoints(centerCoords, selectedRadius, activePopupData.direction);
+            const direction = directionMap[activePopupData.directionKey] || activePopupData.direction; // Use directionKey if available
+            const arcPoints = getArcPoints(centerCoords, selectedRadius, direction);
             geojson = {
                 type: 'FeatureCollection',
                 features: arcPoints.length > 0 ? [{
@@ -142,7 +196,7 @@ export default function Map() {
                         type: 'Polygon',
                         coordinates: [arcPoints]
                     },
-                    properties: { direction: activePopupData.direction }
+                    properties: { direction: direction }
                 }] : []
             };
         }
@@ -153,8 +207,7 @@ export default function Map() {
       console.error("Error projecting popup coordinates or updating arc:", error);
       setPopupPos(null);
     }
-  }, [activePopupData, selectedRadius]); // Removed lng, lat, zoom to prevent unnecessary re-renders here
-
+  }, [activePopupData, selectedRadius]); 
 
   const dropPinAtCenter = useCallback(() => {
     if (!map.current) return;
@@ -250,6 +303,7 @@ export default function Map() {
     }
   }, []);
 
+  // --- MODIFIED handlePinClick to handle connection mode ---
   const handlePinClick = useCallback(
     async (pinCoordinates, index) => {
       const [lng, lat] = pinCoordinates;
@@ -258,6 +312,26 @@ export default function Map() {
         return;
       }
 
+      // If in connection mode and clicking a different pin
+      if (connectionMode && connectingMarkerIndex !== null && connectingMarkerIndex !== index) {
+        const fromCoords = droppedPins[connectingMarkerIndex];
+        const toCoords = pinCoordinates;
+        
+        // Draw the curved line
+        const lineGeojson = getCurvedLinePoints(fromCoords, toCoords); // Use the new function
+        setDrawnLines(prevLines => [
+          ...prevLines,
+          { fromIndex: connectingMarkerIndex, toIndex: index, geojson: lineGeojson }
+        ]);
+
+        // Reset connection mode
+        setConnectionMode(false);
+        setConnectingMarkerIndex(null);
+        handleClosePopup(); // Close any active popup
+        return; // Exit as connection is made
+      }
+
+      // If in connection mode and clicking the same pin, or connection mode is not active
       const placeName = await fetchPlaceName(lng, lat);
       const direction = 'Overview';
 
@@ -275,7 +349,7 @@ export default function Map() {
       });
       fetchAISuggestion(index, placeName, direction, lng, lat, null);
     },
-    [fetchPlaceName, fetchAISuggestion]
+    [fetchPlaceName, fetchAISuggestion, connectionMode, connectingMarkerIndex, droppedPins, handleClosePopup]
   );
 
   const handleDirectionalPopupOpen = useCallback(
@@ -295,7 +369,7 @@ export default function Map() {
         lng,
         lat,
         direction,
-        directionKey, // Pass the key to match with directionMap
+        directionKey, 
         placeName,
         loading: false,
         aiContent: 'Adjust radius and click "Explore" to get suggestions.',
@@ -319,21 +393,42 @@ export default function Map() {
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
-  }, []);
+    // If closing popup while in connection mode, cancel connection mode
+    if (connectionMode) {
+      setConnectionMode(false);
+      setConnectingMarkerIndex(null);
+    }
+  }, [connectionMode]);
 
   const handleRemoveMarker = useCallback(() => {
     if (!activePopupData) return;
 
-    setDroppedPins((prevPins) =>
-      prevPins.filter((_, index) => index !== activePopupData.pinIndex)
-    );
+    setDroppedPins((prevPins) => {
+      const removedIndex = activePopupData.pinIndex;
+      const newPins = prevPins.filter((_, index) => index !== removedIndex);
+      // Re-index drawnLines if a lower index pin is removed
+      setDrawnLines(currentLines => currentLines.filter(line => 
+        line.fromIndex !== removedIndex && line.toIndex !== removedIndex
+      ).map(line => ({
+        ...line,
+        fromIndex: line.fromIndex > removedIndex ? line.fromIndex - 1 : line.fromIndex,
+        toIndex: line.toIndex > removedIndex ? line.toIndex - 1 : line.toIndex
+      })));
+      return newPins;
+    });
+    
     setActivePopupData(null);
     setSelectedRadius(5);
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
     setHoveredPinIndex(null);
-  }, [activePopupData]);
+    // If removing while in connection mode, cancel connection mode
+    if (connectionMode) {
+      setConnectionMode(false);
+      setConnectingMarkerIndex(null);
+    }
+  }, [activePopupData, connectionMode]);
 
   const handleRadiusChange = useCallback((event) => {
     const newRadius = Number(event.target.value);
@@ -350,6 +445,15 @@ export default function Map() {
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen(prev => !prev);
   }, []);
+
+  // --- Handle "Connect to Another Marker" button click ---
+  const handleConnectMarkers = useCallback(() => {
+    if (droppedPins.length > 1 && activePopupData) {
+      setConnectionMode(true);
+      setConnectingMarkerIndex(activePopupData.pinIndex);
+      setActivePopupData(null); // Close the popup when entering connection mode
+    }
+  }, [droppedPins, activePopupData]);
 
   return (
     <>
@@ -378,6 +482,9 @@ export default function Map() {
         
         const point = map.current.project([pinLng, pinLat]);
 
+        // Determine if this pin should pulse
+        const shouldPulse = connectionMode && index !== connectingMarkerIndex;
+
         return (
           <div
             key={index}
@@ -390,7 +497,7 @@ export default function Map() {
             }}
           >
             <div
-              className={`relative w-20 h-20 pointer-events-auto`}
+              className={`relative w-20 h-20 pointer-events-auto ${shouldPulse ? 'animate-pulse-pin' : ''}`}
               onMouseEnter={() => setHoveredPinIndex(index)}
               onMouseLeave={() => setHoveredPinIndex(null)}
               onClick={() => handlePinClick(pin, index)} 
@@ -398,7 +505,7 @@ export default function Map() {
               <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
                 📍
               </div>
-              {hoveredPinIndex === index && ( // ArrowPin visible on hover only
+              {hoveredPinIndex === index && !connectionMode && ( // Only show arrows on hover if not in connection mode
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin
                     onArrowClick={(dir) => handleDirectionalPopupOpen(dir, pin, index)}
@@ -486,11 +593,11 @@ export default function Map() {
                   Explore {activePopupData.direction}
                 </button>
               )}
-              {/* Connect to Another Marker button - temporarily removed logic */}
+              {/* --- NEW: Connect to Another Marker Button --- */}
               {droppedPins.length > 1 && ( // Only show if more than one marker exists
                 <button
                   className="px-3 py-1 border border-purple-500 text-purple-600 rounded-full hover:bg-purple-50 transition"
-                  onClick={() => alert("Connect feature coming soon! (Re-implementing)")} // Placeholder
+                  onClick={handleConnectMarkers}
                 >
                   Connect to Another Marker
                 </button>
@@ -515,7 +622,7 @@ export default function Map() {
           <div className="mt-4 p-3 bg-white rounded-lg shadow-inner">
             <h3 className="font-semibold mb-2">Trip Connections (Coming Soon)</h3>
             <p className="text-sm text-gray-600">Manage connections between your markers.</p>
-          </div>
+          </p>
         </Sidebar>
     </>
   );
