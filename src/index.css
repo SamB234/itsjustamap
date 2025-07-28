@@ -20,3 +20,24 @@ a {
 a:hover {
   color: #e0e0e0;
 }
+
+
+/* --- NEW: Pulsing animation for markers --- */
+@keyframes pulse-pin {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-pulse-pin {
+  animation: pulse-pin 1.5s infinite ease-in-out;
+}
