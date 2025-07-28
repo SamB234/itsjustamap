@@ -571,7 +571,7 @@ export default function Map() {
             <p className="text-sm text-gray-600">e.g., historical sites, foodie spots, nature trails</p>
           </div>
           <div className="mt-4 p-3 bg-white rounded-lg shadow-inner">
-            <h3 className="font-semibold mb-2">Trip Connections (Coming Soon)</p>
+            <h3 className="font-semibold mb-2">Trip Connections (Coming Soon)</h3>
             <p className="text-sm text-gray-600">Manage connections between your markers.</p>
           </div>
         </Sidebar>
