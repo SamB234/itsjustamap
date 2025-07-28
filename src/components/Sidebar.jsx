@@ -1,10 +1,11 @@
 import React from 'react';
 
 export default function Sidebar({ isOpen, onClose, children }) {
-  const collapsedWidth = '56px'; // Fixed width of the sidebar when collapsed
-  const expandedWidth = '320px'; // Desired full width when expanded
+  const collapsedWidth = '56px';    // Fixed width of the sidebar when collapsed
+  const collapsedHeight = '48px';   // Fixed height of the sidebar when collapsed (for the arrow)
+  const expandedWidth = '320px';    // Desired full width when expanded
   
-  const navbarHeight = '56px'; // Height of your Navbar (h-14 = 56px)
+  const navbarHeight = '56px';      // Height of your Navbar (h-14 = 56px)
   const paddingTopFromNavbar = '14px'; // Desired padding below Navbar
 
   // Calculate top position relative to navbar
@@ -13,24 +14,24 @@ export default function Sidebar({ isOpen, onClose, children }) {
   return (
     <div
       // Background and transparency: bg-opacity-90 for more prominence
-      // Conditional rounding: rounded-r-lg when collapsed, rounded-lg when open
-      // Overflow-hidden on the main container for clean edges during width transition
-      className={`fixed left-5 backdrop-blur bg-gray-100 bg-opacity-90 shadow-sm z-40 transition-all duration-300 ease-in-out flex flex-col overflow-hidden
-                  ${isOpen ? 'rounded-lg' : 'rounded-r-lg'}`} // Use rounded-r-lg for a vertical strip
+      // Conditional rounding: rounded-lg when open, rounded-full when collapsed (for the small pill)
+      // Overflow-hidden on the main container for clean edges during width/height transition
+      className={`fixed left-5 backdrop-blur bg-gray-100 bg-opacity-90 shadow-sm z-40 transition-all duration-300 ease-in-out flex flex-col overflow-hidden 
+                  ${isOpen ? 'rounded-lg' : 'rounded-full'}`} {/* Changed to rounded-full for collapsed pill */}
       style={{
         top: sidebarTop,
         width: isOpen ? expandedWidth : collapsedWidth, // Animate width
-        // *** KEY CHANGE: Height is always 'auto' to fit content ***
-        height: 'auto', 
+        // *** KEY CHANGE: Fixed height when collapsed, auto height when expanded ***
+        height: isOpen ? 'auto' : collapsedHeight, 
         // Max height limits 'auto' height to prevent overflow off-screen
         maxHeight: `calc(100vh - ${sidebarTop} - 20px)`, 
       }}
-      // NO onClick on the parent div to ensure button clickability
+      // NO onClick on the parent div to ensure button clickability (clicks only on arrow/X)
     >
       {/* Conditional rendering for "Trip Planner" heading when expanded */}
       {/* It only appears when isOpen is true, without any animation/rotation */}
       {isOpen && (
-        <div className="px-4 py-3 flex items-center"> {/* No fixed height here, let content dictate */}
+        <div className="px-4 py-3 flex items-center">
           <h2 className="text-xl font-semibold text-blue-700 whitespace-nowrap overflow-hidden text-ellipsis">
             Trip Planner
           </h2>
@@ -40,14 +41,11 @@ export default function Sidebar({ isOpen, onClose, children }) {
       {/* Sidebar Content (Children) - visible when open, but always present to drive height */}
       {/* Opacity and pointer-events control visibility/interactivity */}
       <div 
-        className={`px-4 pb-4 overflow-y-auto transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-        // The max-height for the content itself ensures it scrolls if it's too much for the sidebar's max-height
+        className={`flex-grow px-4 pb-4 overflow-y-auto transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         style={{ 
-          maxHeight: isOpen ? '1000px' : '0', // Arbitrarily large or dynamic to allow scroll if needed, 0 when collapsed
-          // The padding top should only apply when expanded, otherwise it takes up space in collapsed state
-          paddingTop: isOpen ? '16px' : '0',
-          // Adjust this max-height further if content goes off screen before scroll appears
-          // A more robust calc would be: `calc(${maxHeightOfSidebar} - ${currentHeightOfHeader})`
+          // Adjust max-height for content when open, so it scrolls if sidebar's auto height isn't enough
+          maxHeight: isOpen ? `calc(100% - ${48}px)` : '0', // 100% of parent minus header height when open, 0 when collapsed
+          paddingTop: isOpen ? '16px' : '0', // Consistent internal padding
         }}
       >
         <div className="mt-2">
