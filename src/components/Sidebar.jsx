@@ -19,6 +19,9 @@ export default function Sidebar({ isOpen, onClose, children }) {
         height: 'auto', 
         maxHeight: `calc(100vh - ${sidebarTop} - 20px)`, 
       }}
+      // Re-added onClick for the main div (active only when collapsed)
+      // This allows clicking anywhere on the collapsed pill to expand it
+      onClick={!isOpen ? onClose : undefined} 
     >
       {/* Main Content Wrapper */}
       <div 
@@ -51,6 +54,7 @@ export default function Sidebar({ isOpen, onClose, children }) {
           className={`p-1 rounded-md text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 z-50 absolute 
                       top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2`} 
           aria-label="Open sidebar"
+          // IMPORTANT: Prevent button clicks from propagating to the parent div's onClick
           onMouseDown={(e) => e.stopPropagation()} 
         >
           <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
