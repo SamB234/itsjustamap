@@ -307,7 +307,7 @@ export default function Map() {
   const handlePinClick = useCallback(
     async (pinCoordinates, index) => {
       const [lng, lat] = pinCoordinates;
-      if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
+      if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lng)) { // Corrected: Check for NaN(lng) twice
         console.error("Clicked pin has invalid coordinates:", { lng, lat });
         return;
       }
@@ -622,7 +622,7 @@ export default function Map() {
           <div className="mt-4 p-3 bg-white rounded-lg shadow-inner">
             <h3 className="font-semibold mb-2">Trip Connections (Coming Soon)</h3>
             <p className="text-sm text-gray-600">Manage connections between your markers.</p>
-          </p>
+          </div> {/* Corrected: Removed extra closing </p> tag here */}
         </Sidebar>
     </>
   );
