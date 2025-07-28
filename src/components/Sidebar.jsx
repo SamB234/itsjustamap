@@ -17,7 +17,8 @@ export default function Sidebar({ isOpen, onClose, children }) {
       // Conditional rounding: rounded-lg when open, rounded-full when collapsed (for the small pill)
       // Overflow-hidden on the main container for clean edges during width/height transition
       className={`fixed left-5 backdrop-blur bg-gray-100 bg-opacity-90 shadow-sm z-40 transition-all duration-300 ease-in-out flex flex-col overflow-hidden 
-                  ${isOpen ? 'rounded-lg' : 'rounded-full'}`} {/* Changed to rounded-full for collapsed pill */}
+                  ${isOpen ? 'rounded-lg' : 'rounded-full'}`} // Changed to rounded-full for collapsed pill 
+      
       style={{
         top: sidebarTop,
         width: isOpen ? expandedWidth : collapsedWidth, // Animate width
