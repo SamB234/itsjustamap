@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ArrowPin from './ArrowPin';
-// ONLY import functions related to arcs and circles for now
-import { getArcPoints, getCirclePoints } from './mapUtils';
+// UPDATED: Now importing getCurvedLinePoints as well
+import { getArcPoints, getCirclePoints, getCurvedLinePoints } from './mapUtils';
 import Sidebar from './Sidebar';
 
 mapboxgl.accessToken =
@@ -21,7 +21,9 @@ const directionMap = {
 const ARC_SOURCE_ID = 'arc-source';
 const ARC_LAYER_ID = 'arc-layer';
 
-// REMOVED: CURVED_LINE_SOURCE_ID and CURVED_LINE_LAYER_ID constants
+// ADDED: Constants for curved lines
+const CURVED_LINE_SOURCE_ID = 'curved-line-source';
+const CURVED_LINE_LAYER_ID = 'curved-line-layer';
 
 export default function Map() {
   const mapContainer = useRef(null);
@@ -40,7 +42,10 @@ export default function Map() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // REMOVED: connectionMode, connectingMarkerIndex, drawnLines states
+  // ADDED: State for drawn lines
+  const [drawnLines, setDrawnLines] = useState([]);
+
+  // Note: connectionMode and connectingMarkerIndex states are still REMOVED for this phase.
 
   useEffect(() => {
     if (map.current) return;
@@ -104,7 +109,33 @@ export default function Map() {
         });
       }
 
-      // REMOVED: Curved Line Source and Layer setup
+      // ADDED: Curved Line Source and Layer setup
+      if (!map.current.getSource(CURVED_LINE_SOURCE_ID)) {
+        map.current.addSource(CURVED_LINE_SOURCE_ID, {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: []
+          }
+        });
+      }
+
+      if (!map.current.getLayer(CURVED_LINE_LAYER_ID)) {
+        map.current.addLayer({
+          id: CURVED_LINE_LAYER_ID,
+          type: 'line',
+          source: CURVED_LINE_SOURCE_ID,
+          layout: {
+            'line-join': 'round',
+            'line-cap': 'round'
+          },
+          paint: {
+            'line-color': '#FF8C00',
+            'line-width': 3,
+            'line-opacity': 0.8
+          }
+        });
+      }
     });
 
     return () => {
@@ -114,14 +145,34 @@ export default function Map() {
         if (map.current.getLayer(ARC_LAYER_ID)) map.current.removeLayer(ARC_LAYER_ID);
         if (map.current.getSource(ARC_SOURCE_ID)) map.current.removeSource(ARC_SOURCE_ID);
 
-        // REMOVED: Curved Line cleanup
+        // ADDED: Curved Line cleanup
+        if (map.current.getLayer(CURVED_LINE_LAYER_ID)) map.current.removeLayer(CURVED_LINE_LAYER_ID);
+        if (map.current.getSource(CURVED_LINE_SOURCE_ID)) map.current.removeSource(CURVED_LINE_SOURCE_ID);
 
         map.current.remove();
       }
     };
   }, []);
 
-  // REMOVED: Effect to update curved lines on the map (due to drawnLines state)
+  // ADDED: Effect to update curved lines on the map based on `drawnLines` state
+  useEffect(() => {
+    console.log("useEffect [drawnLines] triggered. drawnLines count:", drawnLines.length);
+    if (map.current && map.current.isStyleLoaded() && map.current.getSource(CURVED_LINE_SOURCE_ID)) {
+      const lineFeatures = drawnLines.map(line => line.geojson);
+      try {
+        map.current.getSource(CURVED_LINE_SOURCE_ID).setData({
+          type: 'FeatureCollection',
+          features: lineFeatures
+        });
+        console.log("Curved line source updated successfully.");
+      } catch (e) {
+        console.error("Error setting data for curved line source:", e);
+      }
+    } else if (drawnLines.length > 0) {
+      console.warn("Attempted to update curved lines but map or source not ready yet. drawnLines:", drawnLines);
+    }
+  }, [drawnLines]); // Dependency array: run this effect when drawnLines changes
+
 
   useEffect(() => {
     if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
@@ -329,14 +380,18 @@ export default function Map() {
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
+    // No connection mode state reset here yet
   }, []);
 
   const handleRemoveMarker = useCallback(() => {
     if (!activePopupData) return;
 
+    const removedIndex = activePopupData.pinIndex;
+
     setDroppedPins((prevPins) =>
-      prevPins.filter((_, index) => index !== activePopupData.pinIndex)
+      prevPins.filter((_, index) => index !== removedIndex)
     );
+    // REMOVED: Adjust drawnLines logic for now. Will add back with connection.
     setActivePopupData(null);
     setSelectedRadius(5);
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
@@ -497,7 +552,7 @@ export default function Map() {
                   Explore {directionMap[activePopupData.direction] || activePopupData.direction}
                 </button>
               )}
-              {/* REMOVED: "Connect to Another Marker" button */}
+              {/* REMOVED: "Connect to Another Marker" button (for now) */}
               <button
                 className="px-3 py-1 border border-red-500 text-red-600 rounded-full hover:bg-red-50 transition"
                 onClick={handleRemoveMarker}
@@ -516,7 +571,7 @@ export default function Map() {
             <p className="text-sm text-gray-600">e.g., historical sites, foodie spots, nature trails</p>
           </div>
           <div className="mt-4 p-3 bg-white rounded-lg shadow-inner">
-            <h3 className="font-semibold mb-2">Trip Connections (Coming Soon)</h3>
+            <h3 className="font-semibold mb-2">Trip Connections (Coming Soon)</p>
             <p className="text-sm text-gray-600">Manage connections between your markers.</p>
           </div>
         </Sidebar>
