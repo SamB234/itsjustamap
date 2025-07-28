@@ -348,11 +348,13 @@ export default function Map() {
         // Reset connection mode
         setConnectionMode(false);
         setConnectingMarkerIndex(null);
-        alert(`Connected Marker ${connectingMarkerIndex + 1} to Marker ${index + 1}!`);
+        // REMOVED: The alert() call that was blocking interaction
+        console.log(`Connected Marker ${connectingMarkerIndex + 1} to Marker ${index + 1}!`);
 
       } else if (connectionMode && connectingMarkerIndex === index) {
         // User clicked the same marker they started connection from
-        alert('You clicked the same marker. Connection cancelled.');
+        // REMOVED: The alert() call that was blocking interaction
+        console.log('You clicked the same marker. Connection cancelled.');
         setConnectionMode(false);
         setConnectingMarkerIndex(null);
         setActivePopupData(null); // Close popup if it was open from initial click
@@ -417,9 +419,9 @@ export default function Map() {
     if (activePopupData) {
       setConnectionMode(true);
       setConnectingMarkerIndex(activePopupData.pinIndex);
-      // Close the current popup as we're now in connection mode
+      // ADDED: Close the popup immediately so user can click another marker
       setActivePopupData(null);
-      alert('Connection Mode: Click another marker to connect!');
+      // REMOVED: The alert() call, replaced by a visual indicator in JSX
     }
   }, [activePopupData]);
 
@@ -435,32 +437,65 @@ export default function Map() {
     setConnectingMarkerIndex(null);
   }, []);
 
-  const handleRemoveMarker = useCallback(() => {
-    if (!activePopupData) return;
+  const handleRemoveMarker = useCallback((indexToRemove) => {
+    // Determine the actual index to remove. If called from activePopupData, use its pinIndex.
+    // If called directly from a loop (e.g., from sidebar), use indexToRemove argument.
+    const removedIndex = activePopupData ? activePopupData.pinIndex : indexToRemove;
 
-    const removedIndex = activePopupData.pinIndex;
+    if (removedIndex === undefined || removedIndex === null) {
+      console.warn("handleRemoveMarker called without a valid index to remove.");
+      return;
+    }
 
-    setDroppedPins((prevPins) =>
-      prevPins.filter((_, index) => index !== removedIndex)
-    );
+    setDroppedPins((prevPins) => {
+      const newPins = prevPins.filter((_, index) => index !== removedIndex);
 
-    // MODIFIED: Remove lines associated with the removed marker
-    setDrawnLines((prevLines) =>
-      prevLines.filter(line =>
+      // Adjust connectingMarkerIndex if a pin before it was removed
+      if (connectionMode && connectingMarkerIndex !== null) {
+        if (connectingMarkerIndex === removedIndex) {
+          setConnectionMode(false);
+          setConnectingMarkerIndex(null);
+        } else if (connectingMarkerIndex > removedIndex) {
+          setConnectingMarkerIndex(prev => prev - 1);
+        }
+      }
+      return newPins;
+    });
+
+    // Filter out lines connected to the removed marker OR whose indices have shifted
+    setDrawnLines((prevLines) => {
+      const filteredLines = prevLines.filter(line =>
         line.geojson.properties.fromIndex !== removedIndex &&
         line.geojson.properties.toIndex !== removedIndex
-      )
-    );
+      );
 
-    setActivePopupData(null);
+      // Adjust indices of lines where markers *after* the removed index were involved
+      return filteredLines.map(line => {
+        let { fromIndex, toIndex } = line.geojson.properties;
+        if (fromIndex > removedIndex) fromIndex--;
+        if (toIndex > removedIndex) toIndex--;
+        return {
+          ...line,
+          geojson: {
+            ...line.geojson,
+            properties: { ...line.geojson.properties, fromIndex, toIndex }
+          },
+          id: `${fromIndex}-${toIndex}` // Update ID to reflect new indices
+        };
+      });
+    });
+
+    setActivePopupData(null); // Ensure popup is closed after removal
     setSelectedRadius(5);
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
     setHoveredPinIndex(null);
-    setConnectionMode(false); // Ensure connection mode is off
-    setConnectingMarkerIndex(null); // Clear connecting marker
-  }, [activePopupData]);
+    // Ensure connection mode is off and connecting marker is cleared
+    setConnectionMode(false);
+    setConnectingMarkerIndex(null);
+  }, [activePopupData, connectionMode, connectingMarkerIndex]);
+
 
   const handleRadiusChange = useCallback((event) => {
     const newRadius = Number(event.target.value);
@@ -482,6 +517,22 @@ export default function Map() {
   return (
     <>
       <div ref={mapContainer} className="absolute top-0 left-0 w-full h-full" />
+
+      {/* NEW: Connection Mode Indicator */}
+      {connectionMode && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg z-50 animate-pulse">
+          Connection Mode: Click another marker to connect! (From Marker {connectingMarkerIndex + 1})
+          <button
+            className="ml-4 px-2 py-0.5 border border-white rounded-full text-xs hover:bg-white hover:text-blue-600"
+            onClick={() => {
+              setConnectionMode(false);
+              setConnectingMarkerIndex(null);
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* Fixed center pin */}
       <div
@@ -509,7 +560,7 @@ export default function Map() {
         return (
           <div
             key={index}
-            className="absolute pointer-events-none"
+            className={`absolute pointer-events-none ${connectionMode && index === connectingMarkerIndex ? 'border-4 border-blue-500 rounded-full animate-ping-slow' : ''}`}
             style={{
               left: point.x,
               top: point.y,
