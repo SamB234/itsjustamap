@@ -1,15 +1,18 @@
 import React from 'react';
 
 export default function Sidebar({ isOpen, onClose, children }) {
-  const collapsedWidth = '56px';    // Fixed width of the sidebar when collapsed
-  const collapsedHeight = '48px';   // Fixed height for the collapsed pill (to fit arrow)
-  const expandedWidth = '320px';    // Desired full width when expanded
+  const collapsedWidth = '56px';    // Fixed width when collapsed
+  const expandedWidth = '320px';    // Fixed width when expanded
   
   const navbarHeight = '56px';      // Height of your Navbar (h-14 = 56px)
   const paddingTopFromNavbar = '14px'; // Desired padding below Navbar
 
   // Calculate top position relative to navbar
   const sidebarTop = `calc(${navbarHeight} + ${paddingTopFromNavbar})`;
+
+  // Let's define the fixed height for the sidebar (e.g., half screen height)
+  // You can adjust this '50vh' value if you prefer a different fixed height
+  const fixedSidebarHeight = `calc(100vh / 2)`; 
 
   return (
     <div
@@ -18,24 +21,20 @@ export default function Sidebar({ isOpen, onClose, children }) {
       style={{
         top: sidebarTop,
         width: isOpen ? expandedWidth : collapsedWidth, 
-        // THIS IS THE KEY: Strictly control height to ensure collapsed state is visible
-        height: isOpen ? 'auto' : collapsedHeight, 
-        minHeight: collapsedHeight, // Guarantee a minimum height
-        maxHeight: `calc(100vh - ${sidebarTop} - 20px)`, // Prevents content from going off screen
+        // KEY CHANGE: Fixed height in both collapsed and expanded states
+        height: fixedSidebarHeight, 
       }}
       // onClick on the main div for expanding when collapsed (only the visible part)
       onClick={!isOpen ? onClose : undefined} 
     >
-      {/* Main Content Wrapper - This div's visibility and dimensions are strictly controlled.
-        It will hide content when collapsed, but its parent (the sidebar) will maintain height.
-      */}
+      {/* Main Content Wrapper - Its visibility is controlled, but it takes up space */}
       <div 
-        className={`flex flex-col ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none overflow-hidden'}`}
+        className={`flex flex-col transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         style={{
-          // When collapsed, content max-height is 0, so it completely hides.
-          // No transition on this part, the main sidebar transition handles it.
+          // When collapsed, content max-height is 0 to hide it visually
           maxHeight: isOpen ? 'none' : '0', 
-          overflowY: 'auto', 
+          overflowY: 'auto', // Allows internal scrolling if content exceeds fixedSidebarHeight
+          flexGrow: 1, // Allows it to take up available vertical space
         }}
       >
         {/* "Trip Planner" Heading */}
