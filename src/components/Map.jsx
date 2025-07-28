@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ArrowPin from './ArrowPin';
-import { getArcPoints, getCirclePoints } from './mapUtils';
-import Sidebar from './Sidebar'; // Import Sidebar component
+import { getArcPoints, getCirclePoints, getCurvedLinePoints } from './mapUtils'; // ADDED getCurvedLinePoints
+import Sidebar from './Sidebar';
 
 mapboxgl.accessToken =
   'pk.eyJ1Ijoic2FtYjIzNCIsImEiOiJjbWRkZ25xcmcwNHhvMmxxdGU3c2J0eTZnIn0.j5NEdvNhU_eZ1tirQpKEAA';
@@ -20,6 +20,10 @@ const directionMap = {
 const ARC_SOURCE_ID = 'arc-source';
 const ARC_LAYER_ID = 'arc-layer';
 
+// ADDED new constants for curved lines
+const CURVED_LINE_SOURCE_ID = 'curved-line-source';
+const CURVED_LINE_LAYER_ID = 'curved-line-layer';
+
 export default function Map() {
   const mapContainer = useRef(null);
   const map = useRef(null);
@@ -34,9 +38,13 @@ export default function Map() {
   const [popupPos, setPopupPos] = useState(null);
 
   const [selectedRadius, setSelectedRadius] = useState(5);
-  
-  // State for controlling sidebar visibility - initial state set to true (expanded)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // ADDED new state variables for connection mode and drawn lines
+  const [connectionMode, setConnectionMode] = useState(false);
+  const [connectingMarkerIndex, setConnectingMarkerIndex] = useState(null);
+  const [drawnLines, setDrawnLines] = useState([]);
 
   useEffect(() => {
     if (map.current) return;
@@ -98,6 +106,7 @@ export default function Map() {
           }
         });
       }
+      // NO NEW SOURCE/LAYER ADDITIONS FOR CURVED LINES YET IN THIS STEP
     });
 
     return () => {
@@ -105,11 +114,13 @@ export default function Map() {
         if (map.current.getLayer(`${ARC_LAYER_ID}-line`)) map.current.removeLayer(`${ARC_LAYER_ID}-line`);
         if (map.current.getLayer(ARC_LAYER_ID)) map.current.removeLayer(ARC_LAYER_ID);
         if (map.current.getSource(ARC_SOURCE_ID)) map.current.removeSource(ARC_SOURCE_ID);
+        // NO NEW SOURCE/LAYER REMOVALS FOR CURVED LINES YET IN THIS STEP
         map.current.remove();
       }
     };
   }, []);
 
+  // NO NEW useEffect FOR DRAWN LINES YET IN THIS STEP
   useEffect(() => {
     if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
       setPopupPos(null);
@@ -128,21 +139,21 @@ export default function Map() {
         let geojson;
 
         if (activePopupData.direction === 'Overview') {
-            geojson = { type: 'FeatureCollection', features: [] };
+          geojson = { type: 'FeatureCollection', features: [] };
         } else {
-            const centerCoords = [activePopupData.lng, activePopupData.lat];
-            const arcPoints = getArcPoints(centerCoords, selectedRadius, activePopupData.direction);
-            geojson = {
-                type: 'FeatureCollection',
-                features: arcPoints.length > 0 ? [{
-                    type: 'Feature',
-                    geometry: {
-                        type: 'Polygon',
-                        coordinates: [arcPoints]
-                    },
-                    properties: { direction: activePopupData.direction }
-                }] : []
-            };
+          const centerCoords = [activePopupData.lng, activePopupData.lat];
+          const arcPoints = getArcPoints(centerCoords, selectedRadius, activePopupData.direction);
+          geojson = {
+            type: 'FeatureCollection',
+            features: arcPoints.length > 0 ? [{
+              type: 'Feature',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [arcPoints]
+              },
+              properties: { direction: activePopupData.direction }
+            }] : []
+          };
         }
         source.setData(geojson);
       }
@@ -177,7 +188,7 @@ export default function Map() {
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}`
       );
       if (!response.ok) {
-          throw new Error(`Geocoding failed with status: ${response.status}`);
+        throw new Error(`Geocoding failed with status: ${response.status}`);
       }
       const data = await response.json();
       const feature = data?.features?.[0];
@@ -336,11 +347,11 @@ export default function Map() {
     const newRadius = Number(event.target.value);
     setSelectedRadius(newRadius);
     setActivePopupData(prev => ({
-        ...prev,
-        loading: false,
-        aiContent: 'Adjust radius and click "Explore" to get suggestions.',
-        error: null,
-        radius: newRadius
+      ...prev,
+      loading: false,
+      aiContent: 'Adjust radius and click "Explore" to get suggestions.',
+      error: null,
+      radius: newRadius
     }));
   }, []);
 
@@ -348,6 +359,7 @@ export default function Map() {
     setIsSidebarOpen(prev => !prev);
   }, []);
 
+  // NO NEW Callbacks related to connecting markers yet
 
   return (
     <>
@@ -373,8 +385,11 @@ export default function Map() {
           console.warn(`Skipping render for pin ${index} due to invalid coordinates or uninitialized map.`, { pinLng, pinLat, mapReady: !!map.current });
           return null;
         }
-        
+
         const point = map.current.project([pinLng, pinLat]);
+
+        // NO pulse animation logic yet
+        // const shouldPulse = connectionMode && index !== connectingMarkerIndex; 
 
         return (
           <div
@@ -388,7 +403,7 @@ export default function Map() {
             }}
           >
             <div
-              className="relative w-20 h-20 pointer-events-auto"
+              className={`relative w-20 h-20 pointer-events-auto`} // No dynamic class for pulse yet
               onMouseEnter={() => setHoveredPinIndex(index)}
               onMouseLeave={() => setHoveredPinIndex(null)}
               onClick={() => handlePinClick(pin, index)}
@@ -396,7 +411,7 @@ export default function Map() {
               <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
                 📍
               </div>
-              {hoveredPinIndex === index && (
+              {hoveredPinIndex === index && ( // No connectionMode check yet
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin
                     onArrowClick={(dir) => handleDirectionalPopupOpen(dir, pin, index)}
@@ -446,7 +461,7 @@ export default function Map() {
                 ? 'Discover this area'
                 : `Explore toward the ${activePopupData.direction}`}
             </div>
-            
+
             {/* Radius Slider for directional responses */}
             {activePopupData.direction !== 'Overview' && (
               <div className="mb-4">
@@ -484,6 +499,7 @@ export default function Map() {
                   Explore {activePopupData.direction}
                 </button>
               )}
+              {/* No "Connect to Another Marker" button logic yet */}
               {activePopupData.direction === 'Overview' || (activePopupData.direction !== 'Overview' && !activePopupData.loading && !activePopupData.error && activePopupData.aiContent !== 'Adjust radius and click "Explore" to get suggestions.') ? (
                 <button
                   className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-50 transition"
