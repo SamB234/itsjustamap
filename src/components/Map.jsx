@@ -106,7 +106,7 @@ export default function Map() {
         });
       }
 
-      // ADDED Curved Line Source and Layer
+      // Curved Line Source and Layer
       if (!map.current.getSource(CURVED_LINE_SOURCE_ID)) {
         map.current.addSource(CURVED_LINE_SOURCE_ID, {
           type: 'geojson',
@@ -142,7 +142,7 @@ export default function Map() {
         if (map.current.getLayer(ARC_LAYER_ID)) map.current.removeLayer(ARC_LAYER_ID);
         if (map.current.getSource(ARC_SOURCE_ID)) map.current.removeSource(ARC_SOURCE_ID);
 
-        // ADDED Curved Line cleanup
+        // Curved Line cleanup
         if (map.current.getLayer(CURVED_LINE_LAYER_ID)) map.current.removeLayer(CURVED_LINE_LAYER_ID);
         if (map.current.getSource(CURVED_LINE_SOURCE_ID)) map.current.removeSource(CURVED_LINE_SOURCE_ID);
 
@@ -151,7 +151,22 @@ export default function Map() {
     };
   }, []);
 
-  // No new useEffect for drawnLines yet in this step
+  // ADDED: Effect to update curved lines on the map
+  useEffect(() => {
+    // This ensures the style (and thus sources/layers) are completely ready.
+    if (map.current && map.current.isStyleLoaded() && map.current.getSource(CURVED_LINE_SOURCE_ID)) {
+      const lineFeatures = drawnLines.map(line => line.geojson);
+      map.current.getSource(CURVED_LINE_SOURCE_ID).setData({
+        type: 'FeatureCollection',
+        features: lineFeatures
+      });
+    } else if (drawnLines.length > 0) {
+      // Optional: Log a warning if lines are drawn but map isn't ready
+      // This might happen on initial load before the map style is fully parsed.
+      console.warn("Attempted to update curved lines but map or source not ready yet.");
+    }
+  }, [drawnLines]); // Dependency array: run this effect when drawnLines changes
+
   useEffect(() => {
     if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
       setPopupPos(null);
