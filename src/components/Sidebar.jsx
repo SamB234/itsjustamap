@@ -5,13 +5,13 @@ export default function Sidebar({ isOpen, onClose, children }) {
   const expandedWidth = '320px';    // Fixed width when expanded
   
   const navbarHeight = '56px';      // Height of your Navbar (h-14 = 56px)
-  const paddingTopFromNavbar = '14px'; // Desired padding below Navbar
+  const paddingTopFromNavbar = '14px'; // Desired padding below Navbar - CORRECTLY NAMED
 
-  // Calculate top position relative to navbar
-  const sidebarTop = `calc(${navbarHeight} + ${paddingToFromNavbar})`;
+  // Calculate top position relative to navbar, using the CORRECT variable name
+  const sidebarTop = `calc(${navbarHeight} + ${paddingTopFromNavbar})`;
 
   // Define the fixed height for the sidebar in BOTH states
-  // You can adjust this '50vh' value to suit your desired fixed height
+  // You can adjust this '50vh' value if you prefer a different fixed height
   const fixedSidebarHeight = `calc(100vh / 2)`; 
 
   return (
@@ -21,7 +21,7 @@ export default function Sidebar({ isOpen, onClose, children }) {
       style={{
         top: sidebarTop,
         width: isOpen ? expandedWidth : collapsedWidth, 
-        // THIS IS THE KEY: Height is ALWAYS the fixed height
+        // Height is ALWAYS the fixed height
         height: fixedSidebarHeight, 
       }}
       // onClick on the main div for expanding when collapsed (only the visible part)
