@@ -8,10 +8,10 @@ export default function Sidebar({ isOpen, onClose, children }) {
   const paddingTopFromNavbar = '14px'; // Desired padding below Navbar
 
   // Calculate top position relative to navbar
-  const sidebarTop = `calc(${navbarHeight} + ${paddingTopFromNavbar})`;
+  const sidebarTop = `calc(${navbarHeight} + ${paddingToFromNavbar})`;
 
-  // Let's define the fixed height for the sidebar (e.g., half screen height)
-  // You can adjust this '50vh' value if you prefer a different fixed height
+  // Define the fixed height for the sidebar in BOTH states
+  // You can adjust this '50vh' value to suit your desired fixed height
   const fixedSidebarHeight = `calc(100vh / 2)`; 
 
   return (
@@ -21,20 +21,22 @@ export default function Sidebar({ isOpen, onClose, children }) {
       style={{
         top: sidebarTop,
         width: isOpen ? expandedWidth : collapsedWidth, 
-        // KEY CHANGE: Fixed height in both collapsed and expanded states
+        // THIS IS THE KEY: Height is ALWAYS the fixed height
         height: fixedSidebarHeight, 
       }}
       // onClick on the main div for expanding when collapsed (only the visible part)
+      // This allows clicking anywhere on the collapsed sidebar (which is now full height) to expand it
       onClick={!isOpen ? onClose : undefined} 
     >
-      {/* Main Content Wrapper - Its visibility is controlled, but it takes up space */}
+      {/* Main Content Wrapper - This div will control the visibility of the content */}
       <div 
-        className={`flex flex-col transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        className={`flex flex-col flex-grow ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         style={{
-          // When collapsed, content max-height is 0 to hide it visually
-          maxHeight: isOpen ? 'none' : '0', 
+          // When collapsed, content is visually hidden (opacity 0), but its container
+          // still contributes to the overall flex layout within the fixedSidebarHeight.
+          // max-height here ensures content itself scrolls if it exceeds available space
+          maxHeight: '100%', // Allow content to take full height of its parent
           overflowY: 'auto', // Allows internal scrolling if content exceeds fixedSidebarHeight
-          flexGrow: 1, // Allows it to take up available vertical space
         }}
       >
         {/* "Trip Planner" Heading */}
