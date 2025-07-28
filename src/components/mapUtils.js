@@ -109,49 +109,15 @@ export function getArcPoints(center, radiusKm, direction, sweepAngle = 90, numSe
 }
 
 /**
- * TEMPORARY DEBUGGING FUNCTION: Generates GeoJSON for a STRAIGHT line between two points.
- * This replaces getCurvedLinePoints for testing purposes.
+ * Generates GeoJSON for a curved line between two points.
+ * Uses a quadratic Bezier curve for a slight arc.
  *
  * @param {[number, number]} startCoords [longitude, latitude] of the start point
  * @param {[number, number]} endCoords [longitude, latitude] of the end point
+ * @param {number} [numPoints=50] Number of interpolation points for the curve (higher = smoother)
+ * @param {number} [offsetFactor=0.2] Controls the "bend" of the curve. Higher value = more bend.
  * @returns {object} GeoJSON Feature of type LineString
  */
-export function getCurvedLinePoints(startCoords, endCoords) {
-    // Add console logs for debugging inputs
-    console.log("getCurvedLinePoints (STRAIGHT LINE DEBUG) called with:", { startCoords, endCoords });
-
-    // Basic input validation
-    if (!Array.isArray(startCoords) || startCoords.length !== 2 || typeof startCoords[0] !== 'number' || typeof startCoords[1] !== 'number' ||
-        !Array.isArray(endCoords) || endCoords.length !== 2 || typeof endCoords[0] !== 'number' || typeof endCoords[1] !== 'number') {
-        console.error("Invalid coordinates provided to getCurvedLinePoints (STRAIGHT LINE DEBUG)");
-        // Return a minimal, valid GeoJSON that won't crash Mapbox but also won't draw
-        return {
-            type: 'Feature',
-            geometry: {
-                type: 'LineString',
-                coordinates: [] // Empty coordinates for invalid input
-            },
-            properties: {
-                error: "Invalid coordinates"
-            }
-        };
-    }
-
-    return {
-        type: 'Feature',
-        geometry: {
-            type: 'LineString',
-            coordinates: [startCoords, endCoords]
-        },
-        properties: {
-            lineType: "straight"
-        }
-    };
-}
-
-
-/*
-// ORIGINAL getCurvedLinePoints (commented out for debugging)
 export function getCurvedLinePoints(startCoords, endCoords, numPoints = 50, offsetFactor = 0.2) {
     const [startLng, startLat] = startCoords;
     const [endLng, endLat] = endCoords;
@@ -162,15 +128,33 @@ export function getCurvedLinePoints(startCoords, endCoords, numPoints = 50, offs
     const midLng = (startLng + endLng) / 2;
     const midLat = (startLat + endLat) / 2;
 
+    // Calculate perpendicular offset for the curve
+    // This creates the "arc". The direction of the offset depends on the relative position of start/end.
+    // We use a simplified cross product logic (dy, -dx) or (-dy, dx)
     const dx = endLng - startLng;
     const dy = endLat - startLat;
 
+    // To ensure the curve is always "above" or "below" the straight line consistently,
+    // we can base the offset direction on the midpoint's relation to the line.
+    // A simple way for a consistent upward/downward curve on a map is to use the midpoint
+    // and apply an offset based on the overall longitude difference.
+    // For flight paths, a slight curve that bends "outwards" is common.
+
+    // Calculate the control point for a quadratic Bezier curve
+    // P(t) = (1-t)^2 * P0 + 2(1-t)t * P1 + t^2 * P2
+    // Where P0 is startCoords, P2 is endCoords, and P1 is the control point.
+
+    // Let's create a control point that's slightly off-center, perpendicular to the line.
+    // A simple cross-product approach: (dy, -dx) for a vector perpendicular to (dx, dy)
+    // Scale by a factor to control the curve's intensity.
     const perpX = -dy * offsetFactor;
     const perpY = dx * offsetFactor;
 
+    // Apply the offset to the midpoint to get the control point
     const controlLng = midLng + perpX;
     const controlLat = midLat + perpY;
 
+    // Generate points along the quadratic Bezier curve
     for (let i = 0; i <= numPoints; i++) {
         const t = i / numPoints;
         const x = (1 - t) * (1 - t) * startLng + 2 * (1 - t) * t * controlLng + t * t * endLng;
@@ -186,4 +170,3 @@ export function getCurvedLinePoints(startCoords, endCoords, numPoints = 50, offs
         }
     };
 }
-*/
