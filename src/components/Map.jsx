@@ -58,6 +58,10 @@ export default function Map() {
       center: [lng, lat],
       zoom: zoom,
       interactive: true,
+      dragRotate: false, // Prevents 3D rotation
+      pitchWithRotate: false, // Prevents pitch on rotation
+      touchZoomRotate: false, // Prevents touch rotation on mobile
+      touchPitch: false, // Prevents touch pitch
     });
 
     map.current.on('move', () => {
@@ -134,8 +138,8 @@ export default function Map() {
               'line-cap': 'round'
             },
             paint: {
-              'line-color': '#FF8C00',
-              'line-width': 4,
+              'line-color': '#007FFF', // Updated to match arc outline
+              'line-width': 2,        // Thinner line
               'line-opacity': 1,
             }
           }
@@ -249,7 +253,7 @@ export default function Map() {
       return;
     }
 
-    const newPin = { id: uuidv4(), coords: [center.lng, center.lat] };
+    const newPin = { id: uuidv4(), coords: [center.lng, center.lat], aiCache: {} };
     setDroppedPins((prevPins) => [...prevPins, newPin]);
   }, []);
 
@@ -318,6 +322,22 @@ export default function Map() {
       }
 
       const data = await response.json();
+
+      setDroppedPins(prevPins => {
+        return prevPins.map(pin => {
+          if (pin.id === pinId) {
+            return {
+              ...pin,
+              aiCache: {
+                ...pin.aiCache,
+                [direction]: data.suggestion,
+              }
+            };
+          }
+          return pin;
+        });
+      });
+
       setActivePopupData((prev) => ({
         ...prev,
         loading: false,
@@ -385,18 +405,35 @@ export default function Map() {
         const direction = 'Overview';
 
         setSelectedRadius(5);
-        setActivePopupData({
-          pinId: pin.id,
-          lng,
-          lat,
-          direction,
-          placeName,
-          loading: true,
-          aiContent: 'Generating overview...',
-          error: null,
-          radius: null,
-        });
-        fetchAISuggestion(pin.id, placeName, direction, lng, lat, null);
+
+        // Check if content is cached
+        const cachedContent = pin.aiCache[direction];
+        if (cachedContent) {
+          setActivePopupData({
+            pinId: pin.id,
+            lng,
+            lat,
+            direction,
+            placeName,
+            loading: false,
+            aiContent: cachedContent,
+            error: null,
+            radius: null,
+          });
+        } else {
+          setActivePopupData({
+            pinId: pin.id,
+            lng,
+            lat,
+            direction,
+            placeName,
+            loading: true,
+            aiContent: 'Generating overview...',
+            error: null,
+            radius: null,
+          });
+          fetchAISuggestion(pin.id, placeName, direction, lng, lat, null);
+        }
       }
     },
     [connectionMode, connectingMarkerId, droppedPins, fetchPlaceName, fetchAISuggestion, setDrawnLines]
@@ -412,6 +449,8 @@ export default function Map() {
 
       const placeName = await fetchPlaceName(lng, lat);
       const direction = directionMap[directionKey] || directionKey;
+      const cachedContent = pin.aiCache[direction];
+      const initialContent = cachedContent || 'Adjust radius and click "Explore" to get suggestions.';
 
       setSelectedRadius(5);
       setActivePopupData({
@@ -420,8 +459,8 @@ export default function Map() {
         lat,
         direction,
         placeName,
-        loading: false,
-        aiContent: 'Adjust radius and click "Explore" to get suggestions.',
+        loading: cachedContent ? false : false,
+        aiContent: initialContent,
         error: null,
         radius: 5,
       });
@@ -432,8 +471,20 @@ export default function Map() {
   const handleExploreDirection = useCallback(() => {
     if (!activePopupData) return;
     const { pinId, placeName, direction, lng, lat } = activePopupData;
+
+    // Check if content for the current direction is already cached
+    const currentPin = droppedPins.find(p => p.id === pinId);
+    if (currentPin && currentPin.aiCache[direction]) {
+      setActivePopupData(prev => ({
+        ...prev,
+        loading: false,
+        aiContent: currentPin.aiCache[direction],
+        error: null,
+      }));
+      return;
+    }
     fetchAISuggestion(pinId, placeName, direction, lng, lat, selectedRadius);
-  }, [activePopupData, fetchAISuggestion, selectedRadius]);
+  }, [activePopupData, fetchAISuggestion, selectedRadius, droppedPins]);
 
   const handleConnectToAnotherMarker = useCallback(() => {
     if (activePopupData) {
@@ -457,7 +508,6 @@ export default function Map() {
   const handleRemoveMarker = useCallback((pinIdToRemove) => {
     const removedPin = droppedPins.find(p => p.id === pinIdToRemove);
     if (!removedPin) return;
-    const removedIndex = droppedPins.indexOf(removedPin);
   
     setDroppedPins((prevPins) => prevPins.filter((pin) => pin.id !== pinIdToRemove));
   
