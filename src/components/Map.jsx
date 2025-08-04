@@ -45,7 +45,7 @@ export default function Map() {
   const [connectionMode, setConnectionMode] = useState(false);
   const [connectingMarkerIndex, setConnectingMarkerIndex] = useState(null);
 
-  const [connectionSuccess, setConnectionSuccess] = useState(null); // NEW STATE: For success message
+  const [connectionSuccess, setConnectionSuccess] = useState(null);
 
   useEffect(() => {
     if (map.current) return;
@@ -136,7 +136,6 @@ export default function Map() {
               'line-opacity': 1,
             }
           },
-          // NEW: Add this layer before a known label layer to ensure it's always on top
           'road-label-sm'
         );
       }
@@ -144,12 +143,10 @@ export default function Map() {
 
     return () => {
       if (map.current) {
-        // Existing Arc cleanup
         if (map.current.getLayer(`${ARC_LAYER_ID}-line`)) map.current.removeLayer(`${ARC_LAYER_ID}-line`);
         if (map.current.getLayer(ARC_LAYER_ID)) map.current.removeLayer(ARC_LAYER_ID);
         if (map.current.getSource(ARC_SOURCE_ID)) map.current.removeSource(ARC_SOURCE_ID);
 
-        // Curved Line cleanup
         if (map.current.getLayer(CURVED_LINE_LAYER_ID)) map.current.removeLayer(CURVED_LINE_LAYER_ID);
         if (map.current.getSource(CURVED_LINE_SOURCE_ID)) map.current.removeSource(CURVED_LINE_SOURCE_ID);
 
@@ -158,22 +155,44 @@ export default function Map() {
     };
   }, []);
 
-  // Effect to update curved lines on the map based on `drawnLines` state
+  // NEW: A separate useEffect to handle line updates safely
   useEffect(() => {
     console.log("useEffect [drawnLines] triggered. drawnLines count:", drawnLines.length);
-    if (map.current && map.current.isStyleLoaded() && map.current.getSource(CURVED_LINE_SOURCE_ID)) {
+
+    if (map.current && map.current.isStyleLoaded()) {
+      const source = map.current.getSource(CURVED_LINE_SOURCE_ID);
       const lineFeatures = drawnLines.map(line => line.geojson);
-      try {
-        map.current.getSource(CURVED_LINE_SOURCE_ID).setData({
-          type: 'FeatureCollection',
-          features: lineFeatures
-        });
-        console.log("Curved line source updated successfully.");
-      } catch (e) {
-        console.error("Error setting data for curved line source:", e);
+
+      if (source) {
+        try {
+          source.setData({
+            type: 'FeatureCollection',
+            features: lineFeatures
+          });
+          console.log("Curved line source updated successfully.");
+        } catch (e) {
+          console.error("Error setting data for curved line source:", e);
+        }
+      } else {
+        // If the source isn't ready yet, wait for it to be added.
+        console.warn("Source not ready, waiting for 'sourcedata' event.");
+        const handleSourceLoad = (e) => {
+          if (e.sourceId === CURVED_LINE_SOURCE_ID) {
+            map.current.off('sourcedata', handleSourceLoad);
+            const loadedSource = map.current.getSource(CURVED_LINE_SOURCE_ID);
+            if (loadedSource) {
+              loadedSource.setData({
+                type: 'FeatureCollection',
+                features: lineFeatures
+              });
+              console.log("Curved line source updated successfully after waiting for source data.");
+            }
+          }
+        };
+        map.current.on('sourcedata', handleSourceLoad);
       }
-    } else if (drawnLines.length > 0) {
-      console.warn("Attempted to update curved lines but map or source not ready yet. drawnLines:", drawnLines);
+    } else {
+        console.warn("Map or style not ready, cannot update lines.");
     }
   }, [drawnLines]);
 
@@ -324,16 +343,13 @@ export default function Map() {
       }
 
       if (connectionMode && connectingMarkerIndex !== null && connectingMarkerIndex !== index) {
-        // We are in connection mode, and this is the second marker click
         const firstPinCoords = droppedPins[connectingMarkerIndex];
         const secondPinCoords = pinCoordinates;
 
-        // Generate curved line points (using the Bezier curve)
         const curveCoords = getCurvedLinePoints(firstPinCoords, secondPinCoords);
 
-        // Create a GeoJSON Feature for the line
         const newLine = {
-          id: `${connectingMarkerIndex}-${index}`, // Unique ID for the line
+          id: `${connectingMarkerIndex}-${index}`,
           geojson: {
             type: 'Feature',
             geometry: {
@@ -349,27 +365,21 @@ export default function Map() {
 
         console.log("Adding new line to state:", newLine);
 
-        // Add the new line to the drawnLines state
         setDrawnLines(prevLines => [...prevLines, newLine]);
 
-        // Reset connection mode
         setConnectionMode(false);
         setConnectingMarkerIndex(null);
-        // NEW: Display a success message in the UI instead of a browser alert
         setConnectionSuccess(`Connection between Marker ${connectingMarkerIndex + 1} and Marker ${index + 1} successful!`);
-        setTimeout(() => setConnectionSuccess(null), 3000); // Hide the message after 3 seconds
+        setTimeout(() => setConnectionSuccess(null), 3000);
 
       } else if (connectionMode && connectingMarkerIndex === index) {
-        // User clicked the same marker they started connection from
         console.log('You clicked the same marker. Connection cancelled.');
         setConnectionSuccess('Connection cancelled.');
         setConnectionMode(false);
         setConnectingMarkerIndex(null);
-        setActivePopupData(null); // Close popup if it was open from initial click
+        setActivePopupData(null);
         setTimeout(() => setConnectionSuccess(null), 3000);
       } else {
-        // Regular pin click: open popup or if already in connection mode,
-        // but clicked a different pin (handled above) or no connectingMarkerIndex set
         const placeName = await fetchPlaceName(lng, lat);
         const direction = 'Overview';
 
@@ -428,7 +438,6 @@ export default function Map() {
     if (activePopupData) {
       setConnectionMode(true);
       setConnectingMarkerIndex(activePopupData.pinIndex);
-      // ADDED: Close the popup immediately so user can click another marker
       setActivePopupData(null);
     }
   }, [activePopupData]);
@@ -440,7 +449,6 @@ export default function Map() {
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
-    // Also cancel connection mode if a popup is closed without completing a connection
     setConnectionMode(false);
     setConnectingMarkerIndex(null);
   }, []);
@@ -519,7 +527,6 @@ export default function Map() {
     <>
       <div ref={mapContainer} className="absolute top-0 left-0 w-full h-full" />
 
-      {/* Connection Mode Indicator */}
       {connectionMode && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg z-50 animate-pulse">
           Connection Mode: Click another marker to connect! (From Marker {connectingMarkerIndex + 1})
@@ -535,7 +542,6 @@ export default function Map() {
         </div>
       )}
 
-      {/* NEW: Connection Success Message */}
       {connectionSuccess && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded-full shadow-lg z-50 transition-opacity duration-500">
           {connectionSuccess}
