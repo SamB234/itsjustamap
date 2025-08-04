@@ -129,8 +129,8 @@ export default function Map() {
           },
           paint: {
             'line-color': '#FF8C00',
-            'line-width': 3,
-            'line-opacity': 0.8
+            'line-width': 4,
+            'line-opacity': 1,
           }
         });
       }
