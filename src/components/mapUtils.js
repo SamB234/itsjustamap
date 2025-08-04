@@ -110,7 +110,7 @@ export function getArcPoints(center, radiusKm, direction, sweepAngle = 90, numSe
 
 /**
  * Generates GeoJSON coordinates for a curved line between two points.
- * Uses a quadratic Bezier curve for a slight arc.
+ * Uses a quadratic Bezier curve for a slight arc, ensuring the curve is always "upwards" (umbrella shape).
  *
  * @param {[number, number]} startCoords [longitude, latitude] of the start point
  * @param {[number, number]} endCoords [longitude, latitude] of the end point
@@ -131,11 +131,20 @@ export function getCurvedLinePoints(startCoords, endCoords, numPoints = 50, offs
     const dx = endLng - startLng;
     const dy = endLat - startLat;
 
-    const perpX = -dy * offsetFactor;
-    const perpY = dx * offsetFactor;
+    // Calculate the perpendicular vector
+    let perpX = -dy;
+    let perpY = dx;
 
-    const controlLng = midLng + perpX;
-    const controlLat = midLat + perpY;
+    // Check the direction of the perpendicular vector's Y component
+    // If it's negative, it means the curve would be a "bowl".
+    // We flip the vector to ensure it always points "up" (umbrella shape).
+    if (perpY < 0) {
+        perpX = -perpX;
+        perpY = -perpY;
+    }
+    
+    const controlLng = midLng + perpX * offsetFactor;
+    const controlLat = midLat + perpY * offsetFactor;
 
     // Generate points along the quadratic Bezier curve
     for (let i = 0; i <= numPoints; i++) {
