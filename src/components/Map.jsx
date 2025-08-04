@@ -99,7 +99,7 @@ export default function Map() {
           paint: {
             'fill-color': '#00BFFF',
             'fill-opacity': 0.25,
-            'fill-outline-color': '#007FFF'
+            'fill-outline-color': '#1d4ed8' // Updated to match new brand blue
           }
         });
 
@@ -109,7 +109,7 @@ export default function Map() {
           source: ARC_SOURCE_ID,
           layout: {},
           paint: {
-            'line-color': '#007FFF',
+            'line-color': '#1d4ed8', // Updated to match new brand blue
             'line-width': 2,
             'line-opacity': 0.75
           }
@@ -138,7 +138,7 @@ export default function Map() {
               'line-cap': 'round'
             },
             paint: {
-              'line-color': '#007FFF', // Updated to match arc outline
+              'line-color': '#1d4ed8', // Updated to match brand blue
               'line-width': 2,        // Thinner line
               'line-opacity': 1,
             }
@@ -612,7 +612,7 @@ export default function Map() {
               onMouseLeave={() => setHoveredPinId(null)}
               onClick={() => handlePinClick(pin)}
             >
-              <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
+              <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-white border-2 border-blue-700 rounded-full flex items-center justify-center text-gray-800 text-xs shadow-md z-5">
                 📍
               </div>
               {hoveredPinId === pin.id && (
