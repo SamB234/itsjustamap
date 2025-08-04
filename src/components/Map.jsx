@@ -317,7 +317,6 @@ export default function Map() {
         return;
       }
 
-      // MODIFIED: Handle connection mode first
       if (connectionMode && connectingMarkerIndex !== null && connectingMarkerIndex !== index) {
         // We are in connection mode, and this is the second marker click
         const firstPinCoords = droppedPins[connectingMarkerIndex];
@@ -342,19 +341,20 @@ export default function Map() {
           }
         };
 
+        console.log("Adding new line to state:", newLine);
+
         // Add the new line to the drawnLines state
         setDrawnLines(prevLines => [...prevLines, newLine]);
 
         // Reset connection mode
         setConnectionMode(false);
         setConnectingMarkerIndex(null);
-        // REMOVED: The alert() call that was blocking interaction
-        console.log(`Connected Marker ${connectingMarkerIndex + 1} to Marker ${index + 1}!`);
+        alert(`Connected Marker ${connectingMarkerIndex + 1} to Marker ${index + 1}!`);
 
       } else if (connectionMode && connectingMarkerIndex === index) {
         // User clicked the same marker they started connection from
-        // REMOVED: The alert() call that was blocking interaction
         console.log('You clicked the same marker. Connection cancelled.');
+        alert('You clicked the same marker. Connection cancelled.');
         setConnectionMode(false);
         setConnectingMarkerIndex(null);
         setActivePopupData(null); // Close popup if it was open from initial click
@@ -421,7 +421,6 @@ export default function Map() {
       setConnectingMarkerIndex(activePopupData.pinIndex);
       // ADDED: Close the popup immediately so user can click another marker
       setActivePopupData(null);
-      // REMOVED: The alert() call, replaced by a visual indicator in JSX
     }
   }, [activePopupData]);
 
@@ -438,8 +437,6 @@ export default function Map() {
   }, []);
 
   const handleRemoveMarker = useCallback((indexToRemove) => {
-    // Determine the actual index to remove. If called from activePopupData, use its pinIndex.
-    // If called directly from a loop (e.g., from sidebar), use indexToRemove argument.
     const removedIndex = activePopupData ? activePopupData.pinIndex : indexToRemove;
 
     if (removedIndex === undefined || removedIndex === null) {
@@ -449,8 +446,6 @@ export default function Map() {
 
     setDroppedPins((prevPins) => {
       const newPins = prevPins.filter((_, index) => index !== removedIndex);
-
-      // Adjust connectingMarkerIndex if a pin before it was removed
       if (connectionMode && connectingMarkerIndex !== null) {
         if (connectingMarkerIndex === removedIndex) {
           setConnectionMode(false);
@@ -462,14 +457,12 @@ export default function Map() {
       return newPins;
     });
 
-    // Filter out lines connected to the removed marker OR whose indices have shifted
     setDrawnLines((prevLines) => {
       const filteredLines = prevLines.filter(line =>
         line.geojson.properties.fromIndex !== removedIndex &&
         line.geojson.properties.toIndex !== removedIndex
       );
 
-      // Adjust indices of lines where markers *after* the removed index were involved
       return filteredLines.map(line => {
         let { fromIndex, toIndex } = line.geojson.properties;
         if (fromIndex > removedIndex) fromIndex--;
@@ -480,18 +473,17 @@ export default function Map() {
             ...line.geojson,
             properties: { ...line.geojson.properties, fromIndex, toIndex }
           },
-          id: `${fromIndex}-${toIndex}` // Update ID to reflect new indices
+          id: `${fromIndex}-${toIndex}`
         };
       });
     });
 
-    setActivePopupData(null); // Ensure popup is closed after removal
+    setActivePopupData(null);
     setSelectedRadius(5);
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
     setHoveredPinIndex(null);
-    // Ensure connection mode is off and connecting marker is cleared
     setConnectionMode(false);
     setConnectingMarkerIndex(null);
   }, [activePopupData, connectionMode, connectingMarkerIndex]);
@@ -518,7 +510,6 @@ export default function Map() {
     <>
       <div ref={mapContainer} className="absolute top-0 left-0 w-full h-full" />
 
-      {/* NEW: Connection Mode Indicator */}
       {connectionMode && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg z-50 animate-pulse">
           Connection Mode: Click another marker to connect! (From Marker {connectingMarkerIndex + 1})
@@ -534,7 +525,6 @@ export default function Map() {
         </div>
       )}
 
-      {/* Fixed center pin */}
       <div
         className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-5 pointer-events-none"
       >
@@ -546,7 +536,6 @@ export default function Map() {
         </div>
       </div>
 
-      {/* Dropped pins */}
       {droppedPins.map((pin, index) => {
         const [pinLng, pinLat] = pin;
 
@@ -589,7 +578,6 @@ export default function Map() {
         );
       })}
 
-      {/* Popup */}
       {activePopupData && popupPos && map.current &&
         typeof activePopupData.lng === 'number' && !isNaN(activePopupData.lng) &&
         typeof activePopupData.lat === 'number' && !isNaN(activePopupData.lat) && (
@@ -628,7 +616,6 @@ export default function Map() {
                 : `Explore toward the ${directionMap[activePopupData.direction] || activePopupData.direction}`}
             </div>
 
-            {/* Radius Slider for directional responses */}
             {activePopupData.direction !== 'Overview' && (
               <div className="mb-4">
                 <label htmlFor="radius-slider" className="block text-sm font-medium text-gray-700 mb-1">
@@ -675,7 +662,7 @@ export default function Map() {
               )}
               <button
                 className="px-3 py-1 border border-red-500 text-red-600 rounded-full hover:bg-red-50 transition"
-                onClick={handleRemoveMarker}
+                onClick={() => handleRemoveMarker(activePopupData.pinIndex)}
               >
                 Remove Marker
               </button>
@@ -683,7 +670,6 @@ export default function Map() {
           </div>
         )}
 
-        {/* Sidebar component */}
         <Sidebar isOpen={isSidebarOpen} onClose={toggleSidebar}>
           <p className="text-gray-700">This is where your trip planning tools will go!</p>
           <div className="mt-4 p-3 bg-white rounded-lg shadow-inner">
