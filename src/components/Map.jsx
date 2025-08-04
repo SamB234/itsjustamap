@@ -138,8 +138,7 @@ export default function Map() {
               'line-width': 4,
               'line-opacity': 1,
             }
-          },
-          'road-label-sm'
+          }
         );
       }
     });
@@ -171,7 +170,6 @@ export default function Map() {
             features: lineFeatures
           });
           console.log("Curved line source updated successfully.");
-          // Optional: Add a check to confirm the layer is present right before updating.
           if (!map.current.getLayer(CURVED_LINE_LAYER_ID)) {
               console.error("CRITICAL: The curved line layer is not present, even though the source was updated.");
           }
