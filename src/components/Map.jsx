@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { v4 as uuidv4 } from 'uuid';
 import ArrowPin from './ArrowPin';
-import { getArcPoints, getCirclePoints, getCurvedLinePoints } from './mapUtils';
+import { getArcPoints, getCurvedLinePoints } from './mapUtils';
 import Sidebar from './Sidebar';
 
 mapboxgl.accessToken =
@@ -26,12 +27,13 @@ const CURVED_LINE_LAYER_ID = 'curved-line-layer';
 export default function Map() {
   const mapContainer = useRef(null);
   const map = useRef(null);
+  const mapLoaded = useRef(false);
 
   const [lng, setLng] = useState(-0.1276);
   const [lat, setLat] = useState(51.5074);
   const [zoom, setZoom] = useState(9);
   const [droppedPins, setDroppedPins] = useState([]);
-  const [hoveredPinIndex, setHoveredPinIndex] = useState(null);
+  const [hoveredPinId, setHoveredPinId] = useState(null);
 
   const [activePopupData, setActivePopupData] = useState(null);
   const [popupPos, setPopupPos] = useState(null);
@@ -43,7 +45,7 @@ export default function Map() {
   const [drawnLines, setDrawnLines] = useState([]);
 
   const [connectionMode, setConnectionMode] = useState(false);
-  const [connectingMarkerIndex, setConnectingMarkerIndex] = useState(null);
+  const [connectingMarkerId, setConnectingMarkerId] = useState(null);
 
   const [connectionSuccess, setConnectionSuccess] = useState(null);
 
@@ -72,6 +74,7 @@ export default function Map() {
     });
 
     map.current.on('load', () => {
+      mapLoaded.current = true;
       // Existing Arc Source and Layer additions
       if (!map.current.getSource(ARC_SOURCE_ID)) {
         map.current.addSource(ARC_SOURCE_ID, {
@@ -155,45 +158,35 @@ export default function Map() {
     };
   }, []);
 
-  // NEW: A separate useEffect to handle line updates safely
+  // Effect to update curved lines on the map based on `drawnLines` state
   useEffect(() => {
     console.log("useEffect [drawnLines] triggered. drawnLines count:", drawnLines.length);
 
-    if (map.current && map.current.isStyleLoaded()) {
-      const source = map.current.getSource(CURVED_LINE_SOURCE_ID);
-      const lineFeatures = drawnLines.map(line => line.geojson);
-
-      if (source) {
+    const updateMapLines = () => {
+      if (map.current && mapLoaded.current && map.current.getSource(CURVED_LINE_SOURCE_ID)) {
+        const lineFeatures = drawnLines.map(line => line.geojson);
         try {
-          source.setData({
+          map.current.getSource(CURVED_LINE_SOURCE_ID).setData({
             type: 'FeatureCollection',
             features: lineFeatures
           });
           console.log("Curved line source updated successfully.");
+          // Optional: Add a check to confirm the layer is present right before updating.
+          if (!map.current.getLayer(CURVED_LINE_LAYER_ID)) {
+              console.error("CRITICAL: The curved line layer is not present, even though the source was updated.");
+          }
         } catch (e) {
           console.error("Error setting data for curved line source:", e);
         }
-      } else {
-        // If the source isn't ready yet, wait for it to be added.
-        console.warn("Source not ready, waiting for 'sourcedata' event.");
-        const handleSourceLoad = (e) => {
-          if (e.sourceId === CURVED_LINE_SOURCE_ID) {
-            map.current.off('sourcedata', handleSourceLoad);
-            const loadedSource = map.current.getSource(CURVED_LINE_SOURCE_ID);
-            if (loadedSource) {
-              loadedSource.setData({
-                type: 'FeatureCollection',
-                features: lineFeatures
-              });
-              console.log("Curved line source updated successfully after waiting for source data.");
-            }
-          }
-        };
-        map.current.on('sourcedata', handleSourceLoad);
       }
+    };
+
+    if (mapLoaded.current) {
+      updateMapLines();
     } else {
-        console.warn("Map or style not ready, cannot update lines.");
+      map.current.once('load', updateMapLines);
     }
+
   }, [drawnLines]);
 
   useEffect(() => {
@@ -205,38 +198,47 @@ export default function Map() {
       return;
     }
 
-    try {
-      const point = map.current.project([activePopupData.lng, activePopupData.lat]);
-      setPopupPos({ x: point.x, y: point.y });
+    const updateArc = () => {
+      try {
+        const point = map.current.project([activePopupData.lng, activePopupData.lat]);
+        setPopupPos({ x: point.x, y: point.y });
 
-      if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
-        const source = map.current.getSource(ARC_SOURCE_ID);
-        let geojson;
+        if (map.current.getSource(ARC_SOURCE_ID)) {
+          const source = map.current.getSource(ARC_SOURCE_ID);
+          let geojson;
 
-        if (activePopupData.direction === 'Overview') {
-          geojson = { type: 'FeatureCollection', features: [] };
-        } else {
-          const centerCoords = [activePopupData.lng, activePopupData.lat];
-          const arcPoints = getArcPoints(centerCoords, selectedRadius, activePopupData.direction);
-          geojson = {
-            type: 'FeatureCollection',
-            features: arcPoints.length > 0 ? [{
-              type: 'Feature',
-              geometry: {
-                type: 'Polygon',
-                coordinates: [arcPoints]
-              },
-              properties: { direction: activePopupData.direction }
-            }] : []
-          };
+          if (activePopupData.direction === 'Overview') {
+            geojson = { type: 'FeatureCollection', features: [] };
+          } else {
+            const centerCoords = [activePopupData.lng, activePopupData.lat];
+            const arcPoints = getArcPoints(centerCoords, selectedRadius, activePopupData.direction);
+            geojson = {
+              type: 'FeatureCollection',
+              features: arcPoints.length > 0 ? [{
+                type: 'Feature',
+                geometry: {
+                  type: 'Polygon',
+                  coordinates: [arcPoints]
+                },
+                properties: { direction: activePopupData.direction }
+              }] : []
+            };
+          }
+          source.setData(geojson);
         }
-        source.setData(geojson);
-      }
 
-    } catch (error) {
-      console.error("Error projecting popup coordinates or updating arc:", error);
-      setPopupPos(null);
+      } catch (error) {
+        console.error("Error projecting popup coordinates or updating arc:", error);
+        setPopupPos(null);
+      }
+    };
+
+    if (mapLoaded.current) {
+      updateArc();
+    } else {
+      map.current.once('load', updateArc);
     }
+    
   }, [activePopupData, lng, lat, zoom, selectedRadius]);
 
 
@@ -249,7 +251,8 @@ export default function Map() {
       return;
     }
 
-    setDroppedPins((prevPins) => [...prevPins, [center.lng, center.lat]]);
+    const newPin = { id: uuidv4(), coords: [center.lng, center.lat] };
+    setDroppedPins((prevPins) => [...prevPins, newPin]);
   }, []);
 
   const fetchPlaceName = useCallback(async (lng, lat) => {
@@ -282,7 +285,7 @@ export default function Map() {
     }
   }, []);
 
-  const fetchAISuggestion = useCallback(async (pinIndex, placeName, direction, lng, lat, radius = null) => {
+  const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = null) => {
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
       console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
       setActivePopupData(prev => ({
@@ -335,21 +338,21 @@ export default function Map() {
   }, []);
 
   const handlePinClick = useCallback(
-    async (pinCoordinates, index) => {
-      const [lng, lat] = pinCoordinates;
+    async (pin) => {
+      const [lng, lat] = pin.coords;
       if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
         console.error("Clicked pin has invalid coordinates:", { lng, lat });
         return;
       }
 
-      if (connectionMode && connectingMarkerIndex !== null && connectingMarkerIndex !== index) {
-        const firstPinCoords = droppedPins[connectingMarkerIndex];
-        const secondPinCoords = pinCoordinates;
+      if (connectionMode && connectingMarkerId !== null && connectingMarkerId !== pin.id) {
+        const firstPin = droppedPins.find(p => p.id === connectingMarkerId);
+        const secondPin = pin;
 
-        const curveCoords = getCurvedLinePoints(firstPinCoords, secondPinCoords);
+        const curveCoords = getCurvedLinePoints(firstPin.coords, secondPin.coords);
 
         const newLine = {
-          id: `${connectingMarkerIndex}-${index}`,
+          id: `${firstPin.id}-${secondPin.id}`,
           geojson: {
             type: 'Feature',
             geometry: {
@@ -357,8 +360,8 @@ export default function Map() {
               coordinates: curveCoords
             },
             properties: {
-              fromIndex: connectingMarkerIndex,
-              toIndex: index
+              fromId: firstPin.id,
+              toId: secondPin.id
             }
           }
         };
@@ -368,15 +371,15 @@ export default function Map() {
         setDrawnLines(prevLines => [...prevLines, newLine]);
 
         setConnectionMode(false);
-        setConnectingMarkerIndex(null);
-        setConnectionSuccess(`Connection between Marker ${connectingMarkerIndex + 1} and Marker ${index + 1} successful!`);
+        setConnectingMarkerId(null);
+        setConnectionSuccess(`Connection successful!`);
         setTimeout(() => setConnectionSuccess(null), 3000);
 
-      } else if (connectionMode && connectingMarkerIndex === index) {
+      } else if (connectionMode && connectingMarkerId === pin.id) {
         console.log('You clicked the same marker. Connection cancelled.');
         setConnectionSuccess('Connection cancelled.');
         setConnectionMode(false);
-        setConnectingMarkerIndex(null);
+        setConnectingMarkerId(null);
         setActivePopupData(null);
         setTimeout(() => setConnectionSuccess(null), 3000);
       } else {
@@ -385,7 +388,7 @@ export default function Map() {
 
         setSelectedRadius(5);
         setActivePopupData({
-          pinIndex: index,
+          pinId: pin.id,
           lng,
           lat,
           direction,
@@ -395,15 +398,15 @@ export default function Map() {
           error: null,
           radius: null,
         });
-        fetchAISuggestion(index, placeName, direction, lng, lat, null);
+        fetchAISuggestion(pin.id, placeName, direction, lng, lat, null);
       }
     },
-    [connectionMode, connectingMarkerIndex, droppedPins, fetchPlaceName, fetchAISuggestion, setDrawnLines]
+    [connectionMode, connectingMarkerId, droppedPins, fetchPlaceName, fetchAISuggestion, setDrawnLines]
   );
 
   const handleDirectionalPopupOpen = useCallback(
-    async (directionKey, pinCoordinates, index) => {
-      const [lng, lat] = pinCoordinates;
+    async (directionKey, pin) => {
+      const [lng, lat] = pin.coords;
       if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
         console.error("Arrow clicked for pin with invalid coordinates:", { lng, lat });
         return;
@@ -414,7 +417,7 @@ export default function Map() {
 
       setSelectedRadius(5);
       setActivePopupData({
-        pinIndex: index,
+        pinId: pin.id,
         lng,
         lat,
         direction,
@@ -430,14 +433,14 @@ export default function Map() {
 
   const handleExploreDirection = useCallback(() => {
     if (!activePopupData) return;
-    const { pinIndex, placeName, direction, lng, lat } = activePopupData;
-    fetchAISuggestion(pinIndex, placeName, direction, lng, lat, selectedRadius);
+    const { pinId, placeName, direction, lng, lat } = activePopupData;
+    fetchAISuggestion(pinId, placeName, direction, lng, lat, selectedRadius);
   }, [activePopupData, fetchAISuggestion, selectedRadius]);
 
   const handleConnectToAnotherMarker = useCallback(() => {
     if (activePopupData) {
       setConnectionMode(true);
-      setConnectingMarkerIndex(activePopupData.pinIndex);
+      setConnectingMarkerId(activePopupData.pinId);
       setActivePopupData(null);
     }
   }, [activePopupData]);
@@ -450,62 +453,37 @@ export default function Map() {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
     setConnectionMode(false);
-    setConnectingMarkerIndex(null);
+    setConnectingMarkerId(null);
   }, []);
 
-  const handleRemoveMarker = useCallback((indexToRemove) => {
-    const removedIndex = activePopupData ? activePopupData.pinIndex : indexToRemove;
-
-    if (removedIndex === undefined || removedIndex === null) {
-      console.warn("handleRemoveMarker called without a valid index to remove.");
-      return;
+  const handleRemoveMarker = useCallback((pinIdToRemove) => {
+    const removedPin = droppedPins.find(p => p.id === pinIdToRemove);
+    if (!removedPin) return;
+    const removedIndex = droppedPins.indexOf(removedPin);
+  
+    setDroppedPins((prevPins) => prevPins.filter((pin) => pin.id !== pinIdToRemove));
+  
+    setDrawnLines((prevLines) =>
+      prevLines.filter(
+        (line) => line.geojson.properties.fromId !== pinIdToRemove && line.geojson.properties.toId !== pinIdToRemove
+      )
+    );
+  
+    if (activePopupData && activePopupData.pinId === pinIdToRemove) {
+      setActivePopupData(null);
     }
-
-    setDroppedPins((prevPins) => {
-      const newPins = prevPins.filter((_, index) => index !== removedIndex);
-      if (connectionMode && connectingMarkerIndex !== null) {
-        if (connectingMarkerIndex === removedIndex) {
-          setConnectionMode(false);
-          setConnectingMarkerIndex(null);
-        } else if (connectingMarkerIndex > removedIndex) {
-          setConnectingMarkerIndex(prev => prev - 1);
-        }
-      }
-      return newPins;
-    });
-
-    setDrawnLines((prevLines) => {
-      const filteredLines = prevLines.filter(line =>
-        line.geojson.properties.fromIndex !== removedIndex &&
-        line.geojson.properties.toIndex !== removedIndex
-      );
-
-      return filteredLines.map(line => {
-        let { fromIndex, toIndex } = line.geojson.properties;
-        if (fromIndex > removedIndex) fromIndex--;
-        if (toIndex > removedIndex) toIndex--;
-        return {
-          ...line,
-          geojson: {
-            ...line.geojson,
-            properties: { ...line.geojson.properties, fromIndex, toIndex }
-          },
-          id: `${fromIndex}-${toIndex}`
-        };
-      });
-    });
-
-    setActivePopupData(null);
+    if (connectionMode && connectingMarkerId === pinIdToRemove) {
+      setConnectionMode(false);
+      setConnectingMarkerId(null);
+    }
+    
+    setHoveredPinId(null);
     setSelectedRadius(5);
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
       map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
     }
-    setHoveredPinIndex(null);
-    setConnectionMode(false);
-    setConnectingMarkerIndex(null);
-  }, [activePopupData, connectionMode, connectingMarkerIndex]);
-
-
+  }, [activePopupData, connectionMode, connectingMarkerId, droppedPins]);
+  
   const handleRadiusChange = useCallback((event) => {
     const newRadius = Number(event.target.value);
     setSelectedRadius(newRadius);
@@ -529,12 +507,12 @@ export default function Map() {
 
       {connectionMode && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg z-50 animate-pulse">
-          Connection Mode: Click another marker to connect! (From Marker {connectingMarkerIndex + 1})
+          Connection Mode: Click another marker to connect!
           <button
             className="ml-4 px-2 py-0.5 border border-white rounded-full text-xs hover:bg-white hover:text-blue-600"
             onClick={() => {
               setConnectionMode(false);
-              setConnectingMarkerIndex(null);
+              setConnectingMarkerId(null);
             }}
           >
             Cancel
@@ -559,11 +537,11 @@ export default function Map() {
         </div>
       </div>
 
-      {droppedPins.map((pin, index) => {
-        const [pinLng, pinLat] = pin;
+      {droppedPins.map((pin) => {
+        const [pinLng, pinLat] = pin.coords;
 
         if (!map.current || typeof pinLng !== 'number' || typeof pinLat !== 'number' || isNaN(pinLng) || isNaN(pinLat)) {
-          console.warn(`Skipping render for pin ${index} due to invalid coordinates or uninitialized map.`, { pinLng, pinLat, mapReady: !!map.current });
+          console.warn(`Skipping render for pin with ID ${pin.id} due to invalid coordinates or uninitialized map.`, { pinLng, pinLat, mapReady: !!map.current });
           return null;
         }
 
@@ -571,8 +549,8 @@ export default function Map() {
 
         return (
           <div
-            key={index}
-            className={`absolute pointer-events-none ${connectionMode && index === connectingMarkerIndex ? 'border-4 border-blue-500 rounded-full animate-ping-slow' : ''}`}
+            key={pin.id}
+            className={`absolute pointer-events-none ${connectionMode && pin.id === connectingMarkerId ? 'border-4 border-blue-500 rounded-full animate-ping-slow' : ''}`}
             style={{
               left: point.x,
               top: point.y,
@@ -582,17 +560,17 @@ export default function Map() {
           >
             <div
               className={`relative w-20 h-20 pointer-events-auto`}
-              onMouseEnter={() => setHoveredPinIndex(index)}
-              onMouseLeave={() => setHoveredPinIndex(null)}
-              onClick={() => handlePinClick(pin, index)}
+              onMouseEnter={() => setHoveredPinId(pin.id)}
+              onMouseLeave={() => setHoveredPinId(null)}
+              onClick={() => handlePinClick(pin)}
             >
               <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-white text-xs shadow-md z-5">
                 📍
               </div>
-              {hoveredPinIndex === index && (
+              {hoveredPinId === pin.id && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
                   <ArrowPin
-                    onArrowClick={(dir) => handleDirectionalPopupOpen(dir, pin, index)}
+                    onArrowClick={(dir) => handleDirectionalPopupOpen(dir, pin)}
                   />
                 </div>
               )}
@@ -685,7 +663,7 @@ export default function Map() {
               )}
               <button
                 className="px-3 py-1 border border-red-500 text-red-600 rounded-full hover:bg-red-50 transition"
-                onClick={() => handleRemoveMarker(activePopupData.pinIndex)}
+                onClick={() => handleRemoveMarker(activePopupData.pinId)}
               >
                 Remove Marker
               </button>
