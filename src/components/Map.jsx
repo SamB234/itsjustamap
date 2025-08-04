@@ -674,8 +674,8 @@ export default function Map() {
                   type="range"
                   id="radius-slider"
                   min="1"
-                  max="50"
-                  step="1"
+                  max="1000"
+                  step="10"
                   value={selectedRadius}
                   onChange={handleRadiusChange}
                   className="w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer range-lg"
