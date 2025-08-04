@@ -45,6 +45,8 @@ export default function Map() {
   const [connectionMode, setConnectionMode] = useState(false);
   const [connectingMarkerIndex, setConnectingMarkerIndex] = useState(null);
 
+  const [connectionSuccess, setConnectionSuccess] = useState(null); // NEW STATE: For success message
+
   useEffect(() => {
     if (map.current) return;
 
@@ -119,20 +121,24 @@ export default function Map() {
       }
 
       if (!map.current.getLayer(CURVED_LINE_LAYER_ID)) {
-        map.current.addLayer({
-          id: CURVED_LINE_LAYER_ID,
-          type: 'line',
-          source: CURVED_LINE_SOURCE_ID,
-          layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
+        map.current.addLayer(
+          {
+            id: CURVED_LINE_LAYER_ID,
+            type: 'line',
+            source: CURVED_LINE_SOURCE_ID,
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round'
+            },
+            paint: {
+              'line-color': '#FF8C00',
+              'line-width': 4,
+              'line-opacity': 1,
+            }
           },
-          paint: {
-            'line-color': '#FF8C00',
-            'line-width': 4,
-            'line-opacity': 1,
-          }
-        });
+          // NEW: Add this layer before a known label layer to ensure it's always on top
+          'road-label-sm'
+        );
       }
     });
 
@@ -349,15 +355,18 @@ export default function Map() {
         // Reset connection mode
         setConnectionMode(false);
         setConnectingMarkerIndex(null);
-        alert(`Connected Marker ${connectingMarkerIndex + 1} to Marker ${index + 1}!`);
+        // NEW: Display a success message in the UI instead of a browser alert
+        setConnectionSuccess(`Connection between Marker ${connectingMarkerIndex + 1} and Marker ${index + 1} successful!`);
+        setTimeout(() => setConnectionSuccess(null), 3000); // Hide the message after 3 seconds
 
       } else if (connectionMode && connectingMarkerIndex === index) {
         // User clicked the same marker they started connection from
         console.log('You clicked the same marker. Connection cancelled.');
-        alert('You clicked the same marker. Connection cancelled.');
+        setConnectionSuccess('Connection cancelled.');
         setConnectionMode(false);
         setConnectingMarkerIndex(null);
         setActivePopupData(null); // Close popup if it was open from initial click
+        setTimeout(() => setConnectionSuccess(null), 3000);
       } else {
         // Regular pin click: open popup or if already in connection mode,
         // but clicked a different pin (handled above) or no connectingMarkerIndex set
@@ -510,6 +519,7 @@ export default function Map() {
     <>
       <div ref={mapContainer} className="absolute top-0 left-0 w-full h-full" />
 
+      {/* Connection Mode Indicator */}
       {connectionMode && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg z-50 animate-pulse">
           Connection Mode: Click another marker to connect! (From Marker {connectingMarkerIndex + 1})
@@ -522,6 +532,13 @@ export default function Map() {
           >
             Cancel
           </button>
+        </div>
+      )}
+
+      {/* NEW: Connection Success Message */}
+      {connectionSuccess && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded-full shadow-lg z-50 transition-opacity duration-500">
+          {connectionSuccess}
         </div>
       )}
 
