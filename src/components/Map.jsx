@@ -593,7 +593,7 @@ export default function Map() {
               <label htmlFor="radius-slider" className="block text-sm font-medium text-gray-700 mb-1">
                 Radius: {selectedRadius} km
               </label>
-              <input type="range" id="radius-slider" min="1" max="2000" step="10" value={selectedRadius} onChange={handleRadiusChange} className="w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer range-lg" />
+              <input type="range" id="radius-slider" min="0" max="2000" step="10" value={selectedRadius} onChange={handleRadiusChange} className="w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer range-lg" />
             </div>
           )}
 
