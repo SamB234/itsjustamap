@@ -410,13 +410,19 @@ export default function Map() {
         const placeName = await fetchPlaceName(lng, lat);
         const direction = 'Overview';
         setSelectedRadius(5);
-        const cacheKey = direction + '-' + activeFilters.sort().join(',');
-        const cachedContent = pin.aiCache[cacheKey];
+
+        // Find existing cached content for the Overview direction, regardless of filters
+        let cachedContent = null;
+        for (const key in pin.aiCache) {
+          if (key.startsWith('Overview-')) {
+            cachedContent = pin.aiCache[key];
+            break; // Use the first one we find
+          }
+        }
         
-        // Determine if the content is stale by checking if a cache key exists
-        // that doesn't match the current filters.
-        const allKeys = Object.keys(pin.aiCache);
-        const isStale = allKeys.length > 0 && !allKeys.includes(cacheKey);
+        // Check if the current cache key (with active filters) exists to determine if stale
+        const currentCacheKey = direction + '-' + activeFilters.sort().join(',');
+        const isStale = cachedContent && !pin.aiCache[currentCacheKey];
 
         if (cachedContent) {
           setActivePopupData({
@@ -443,13 +449,22 @@ export default function Map() {
       }
       const placeName = await fetchPlaceName(lng, lat);
       const direction = directionMap[directionKey] || directionKey;
-      const cacheKey = direction + '-' + activeFilters.sort().join(',');
-      const cachedContent = pin.aiCache[cacheKey];
-      const initialContent = cachedContent || 'Adjust radius and click "Explore" to get suggestions.';
 
-      // Determine if the content is stale
-      const allKeys = Object.keys(pin.aiCache);
-      const isStale = allKeys.length > 0 && !allKeys.includes(cacheKey);
+      // Find any existing cached content for this direction to display
+      let cachedContent = null;
+      for (const key in pin.aiCache) {
+        if (key.startsWith(direction + '-')) {
+          cachedContent = pin.aiCache[key];
+          break; // Use the first one we find
+        }
+      }
+      
+      // Determine if this content is stale by checking if a cache key for the
+      // current filters exists.
+      const currentCacheKey = direction + '-' + activeFilters.sort().join(',');
+      const isStale = cachedContent && !pin.aiCache[currentCacheKey];
+
+      const initialContent = cachedContent || 'Adjust radius and click "Explore" to get suggestions.';
 
       setSelectedRadius(5);
       setActivePopupData({
@@ -458,7 +473,7 @@ export default function Map() {
     },
     [fetchPlaceName, activeFilters]
   );
-
+  
   // Handler for the "Explore" button inside the popup
   const handleExploreDirection = useCallback(() => {
     if (!activePopupData) return;
