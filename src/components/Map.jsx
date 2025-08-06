@@ -66,6 +66,12 @@ export default function Map() {
   const [connectionSuccess, setConnectionSuccess] = useState(null); // Message for a successful connection
 
 
+  // New state for filters
+  const filterOptions = ['nature', 'culture', 'adventure', 'sports', 'beach', 'food', 'nightlife'];
+  const [activeFilters, setActiveFilters] = useState([]); // The filters currently applied
+  const [pendingFilters, setPendingFilters] = useState([]); // The filters selected in the sidebar, not yet applied
+  
+
   // =======================================================================
   // MAP INITIALIZATION & LIFECYCLE
   // This useEffect hook runs only once on component mount to set up the map.
