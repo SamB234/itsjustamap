@@ -14,11 +14,6 @@ export default function ArrowPin({ onArrowClick }) {
 
   return (
     <div className="relative flex flex-col items-center">
-      {/* Central Pin (visual only, actual pin handled by Map.jsx) */}
-      <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center text-white font-bold select-none cursor-pointer">
-        📍
-      </div>
-
       {/* Arrows */}
       {/* North */}
       <div
@@ -84,7 +79,7 @@ export default function ArrowPin({ onArrowClick }) {
           viewBox="0 0 24 24"
           className={arrowClass}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
+          <path strokeLinecap="round" strokeolinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
         </svg>
       </div>
     </div>
