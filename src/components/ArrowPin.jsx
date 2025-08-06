@@ -18,7 +18,7 @@ export default function ArrowPin({ onArrowClick }) {
       {/* North */}
       <div
         onClick={(e) => handleClick('N', e)}
-        className="absolute -top-8 left-1/2 transform -translate-x-1/2"
+        className="absolute -top-12 left-1/2 transform -translate-x-1/2"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -35,7 +35,7 @@ export default function ArrowPin({ onArrowClick }) {
       {/* South */}
       <div
         onClick={(e) => handleClick('S', e)}
-        className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 rotate-180"
+        className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 rotate-180"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -52,7 +52,7 @@ export default function ArrowPin({ onArrowClick }) {
       {/* West */}
       <div
         onClick={(e) => handleClick('W', e)}
-        className="absolute top-1/2 -left-8 transform -translate-y-1/2 -rotate-90"
+        className="absolute top-1/2 -left-12 transform -translate-y-1/2 -rotate-90"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -69,7 +69,7 @@ export default function ArrowPin({ onArrowClick }) {
       {/* East */}
       <div
         onClick={(e) => handleClick('E', e)}
-        className="absolute top-1/2 -right-8 transform -translate-y-1/2 rotate-90"
+        className="absolute top-1/2 -right-12 transform -translate-y-1/2 rotate-90"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -79,7 +79,7 @@ export default function ArrowPin({ onArrowClick }) {
           viewBox="0 0 24 24"
           className={arrowClass}
         >
-          <path strokeLinecap="round" strokeolinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
         </svg>
       </div>
     </div>
