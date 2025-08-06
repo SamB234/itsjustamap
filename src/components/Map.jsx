@@ -414,9 +414,8 @@ export default function Map() {
   }, [isSidebarOpen, activeFilters]);
 
   // =======================================================================
-  // MAP INITIALIZATION & LIFECYCLE
+  // MAP INITIALIZATION (Runs once)
   // =======================================================================
-
   useEffect(() => {
     if (mapLoaded.current) return;
 
@@ -512,18 +511,6 @@ export default function Map() {
       setZoom(map.current.getZoom().toFixed(2));
     });
 
-    // New click listener to close the popup when clicking on the map itself
-    map.current.on('click', (e) => {
-      const features = map.current.queryRenderedFeatures(e.point, {
-        layers: [MARKER_FILL_LAYER_ID, MARKER_OUTLINE_LAYER_ID]
-      });
-
-      // If no features were clicked and a popup is open, close it.
-      if (!features.length && activePopupData) {
-        handleClosePopup();
-      }
-    });
-
     return () => {
       if (map.current) {
         map.current.remove();
@@ -531,11 +518,34 @@ export default function Map() {
         mapLoaded.current = false;
       }
     };
-  }, [activePopupData, handleClosePopup]);
+  }, []); // Empty dependency array, so this effect runs only ONCE.
 
   // =======================================================================
   // DYNAMIC MAP UPDATES (useEffect hooks)
   // =======================================================================
+
+  // This useEffect handles the map click listener specifically for closing the popup.
+  useEffect(() => {
+    if (!map.current || !mapLoaded.current) return;
+
+    const handleMapClickToClosePopup = (e) => {
+      const features = map.current.queryRenderedFeatures(e.point, {
+        layers: [MARKER_FILL_LAYER_ID, MARKER_OUTLINE_LAYER_ID],
+      });
+      if (!features.length && activePopupData) {
+        handleClosePopup();
+      }
+    };
+
+    map.current.on('click', handleMapClickToClosePopup);
+
+    // Clean up the event listener when the component unmounts or dependencies change
+    return () => {
+      if (map.current) {
+        map.current.off('click', handleMapClickToClosePopup);
+      }
+    };
+  }, [activePopupData, handleClosePopup]);
 
   // This useEffect forces a re-render of the markers on every map move,
   // ensuring they stay aligned with their geographic coordinates.
