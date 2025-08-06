@@ -373,7 +373,7 @@ export default function Map() {
     }
   }, []);
 
-  // Handler for when a pin is clicked (for opening the main popup or connecting)
+// Handler for when a pin is clicked (for opening the main popup or connecting)
   const handlePinClick = useCallback(
     async (pin) => {
       const [lng, lat] = pin.coords;
@@ -412,13 +412,19 @@ export default function Map() {
         setSelectedRadius(5);
         const cacheKey = direction + '-' + activeFilters.sort().join(',');
         const cachedContent = pin.aiCache[cacheKey];
+        
+        // Determine if the content is stale by checking if a cache key exists
+        // that doesn't match the current filters.
+        const allKeys = Object.keys(pin.aiCache);
+        const isStale = allKeys.length > 0 && !allKeys.includes(cacheKey);
+
         if (cachedContent) {
           setActivePopupData({
-            pinId: pin.id, lng, lat, direction, placeName, loading: false, aiContent: cachedContent, error: null, radius: null,
+            pinId: pin.id, lng, lat, direction, placeName, loading: false, aiContent: cachedContent, error: null, radius: null, isStale,
           });
         } else {
           setActivePopupData({
-            pinId: pin.id, lng, lat, direction, placeName, loading: true, aiContent: 'Generating overview...', error: null, radius: null,
+            pinId: pin.id, lng, lat, direction, placeName, loading: true, aiContent: 'Generating overview...', error: null, radius: null, isStale,
           });
           fetchAISuggestion(pin.id, placeName, direction, lng, lat, null, activeFilters);
         }
@@ -440,9 +446,14 @@ export default function Map() {
       const cacheKey = direction + '-' + activeFilters.sort().join(',');
       const cachedContent = pin.aiCache[cacheKey];
       const initialContent = cachedContent || 'Adjust radius and click "Explore" to get suggestions.';
+
+      // Determine if the content is stale
+      const allKeys = Object.keys(pin.aiCache);
+      const isStale = allKeys.length > 0 && !allKeys.includes(cacheKey);
+
       setSelectedRadius(5);
       setActivePopupData({
-        pinId: pin.id, lng, lat, direction, placeName, loading: cachedContent ? false : false, aiContent: initialContent, error: null, radius: 5,
+        pinId: pin.id, lng, lat, direction, placeName, loading: cachedContent ? false : false, aiContent: initialContent, error: null, radius: 5, isStale,
       });
     },
     [fetchPlaceName, activeFilters]
