@@ -58,13 +58,8 @@ export default function Map() {
       center: [lng, lat],
       zoom: zoom,
       interactive: true,
-      // Removed all specific interaction options to use defaults
+      // Removed all specific interaction options to use defaults and avoid conflicts
     });
-
-    // Explicitly disable unwanted interactions for a consistent 2D-only experience
-    map.current.dragRotate.disable();
-    map.current.touchRotate.disable();
-    map.current.touchPitch.disable();
 
     map.current.on('move', () => {
       const center = map.current.getCenter();
@@ -82,6 +77,11 @@ export default function Map() {
     map.current.on('load', () => {
       mapLoaded.current = true;
       
+      // Explicitly disable unwanted interactions here to ensure they exist first
+      map.current.dragRotate.disable();
+      map.current.touchRotate.disable();
+      map.current.touchPitch.disable();
+
       if (!map.current.getSource(ARC_SOURCE_ID)) {
         map.current.addSource(ARC_SOURCE_ID, {
           type: 'geojson',
