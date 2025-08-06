@@ -269,7 +269,7 @@ export default function Map() {
   }, [activePopupData, lng, lat, zoom, selectedRadius]);
 
 
-  // =======================================================================
+ // =======================================================================
   // CALLBACK FUNCTIONS (useCallback)
   // These functions are memoized to prevent unnecessary re-creations.
   // =======================================================================
@@ -315,7 +315,7 @@ export default function Map() {
   }, []);
 
   // Function to fetch AI suggestions from the backend
-  const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = null) => {
+  const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = null, filters = []) => {
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
       console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
       setActivePopupData(prev => ({
@@ -337,7 +337,7 @@ export default function Map() {
       const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ placeName, direction, lng, lat, radius }),
+        body: JSON.stringify({ placeName, direction, lng, lat, radius, filters }),
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -347,9 +347,10 @@ export default function Map() {
       setDroppedPins(prevPins => {
         return prevPins.map(pin => {
           if (pin.id === pinId) {
+            const cacheKey = direction + '-' + filters.sort().join(',');
             return {
               ...pin,
-              aiCache: { ...pin.aiCache, [direction]: data.suggestion, }
+              aiCache: { ...pin.aiCache, [cacheKey]: data.suggestion, }
             };
           }
           return pin;
@@ -409,7 +410,8 @@ export default function Map() {
         const placeName = await fetchPlaceName(lng, lat);
         const direction = 'Overview';
         setSelectedRadius(5);
-        const cachedContent = pin.aiCache[direction];
+        const cacheKey = direction + '-' + activeFilters.sort().join(',');
+        const cachedContent = pin.aiCache[cacheKey];
         if (cachedContent) {
           setActivePopupData({
             pinId: pin.id, lng, lat, direction, placeName, loading: false, aiContent: cachedContent, error: null, radius: null,
@@ -418,11 +420,11 @@ export default function Map() {
           setActivePopupData({
             pinId: pin.id, lng, lat, direction, placeName, loading: true, aiContent: 'Generating overview...', error: null, radius: null,
           });
-          fetchAISuggestion(pin.id, placeName, direction, lng, lat, null);
+          fetchAISuggestion(pin.id, placeName, direction, lng, lat, null, activeFilters);
         }
       }
     },
-    [connectionMode, connectingMarkerId, droppedPins, fetchPlaceName, fetchAISuggestion, setDrawnLines]
+    [connectionMode, connectingMarkerId, droppedPins, fetchPlaceName, fetchAISuggestion, setDrawnLines, activeFilters]
   );
 
   // Handler for when a directional arrow is clicked
@@ -435,29 +437,31 @@ export default function Map() {
       }
       const placeName = await fetchPlaceName(lng, lat);
       const direction = directionMap[directionKey] || directionKey;
-      const cachedContent = pin.aiCache[direction];
+      const cacheKey = direction + '-' + activeFilters.sort().join(',');
+      const cachedContent = pin.aiCache[cacheKey];
       const initialContent = cachedContent || 'Adjust radius and click "Explore" to get suggestions.';
       setSelectedRadius(5);
       setActivePopupData({
         pinId: pin.id, lng, lat, direction, placeName, loading: cachedContent ? false : false, aiContent: initialContent, error: null, radius: 5,
       });
     },
-    [fetchPlaceName]
+    [fetchPlaceName, activeFilters]
   );
 
   // Handler for the "Explore" button inside the popup
   const handleExploreDirection = useCallback(() => {
     if (!activePopupData) return;
     const { pinId, placeName, direction, lng, lat } = activePopupData;
+    const cacheKey = direction + '-' + activeFilters.sort().join(',');
     const currentPin = droppedPins.find(p => p.id === pinId);
-    if (currentPin && currentPin.aiCache[direction]) {
+    if (currentPin && currentPin.aiCache[cacheKey]) {
       setActivePopupData(prev => ({
-        ...prev, loading: false, aiContent: currentPin.aiCache[direction], error: null,
+        ...prev, loading: false, aiContent: currentPin.aiCache[cacheKey], error: null,
       }));
       return;
     }
-    fetchAISuggestion(pinId, placeName, direction, lng, lat, selectedRadius);
-  }, [activePopupData, fetchAISuggestion, selectedRadius, droppedPins]);
+    fetchAISuggestion(pinId, placeName, direction, lng, lat, selectedRadius, activeFilters);
+  }, [activePopupData, fetchAISuggestion, selectedRadius, droppedPins, activeFilters]);
 
   // Handler for the "Connect" button
   const handleConnectToAnotherMarker = useCallback(() => {
@@ -511,12 +515,33 @@ export default function Map() {
       ...prev, loading: false, aiContent: 'Adjust radius and click "Explore" to get suggestions.', error: null, radius: newRadius
     }));
   }, []);
-
-  // Handler to toggle the sidebar
-  const toggleSidebar = useCallback(() => {
-    setIsSidebarOpen(prev => !prev);
+  
+  // Handler for when a filter checkbox is toggled
+  const handleFilterToggle = useCallback((filter) => {
+    setPendingFilters(prevFilters => {
+      if (prevFilters.includes(filter)) {
+        return prevFilters.filter(f => f !== filter);
+      } else {
+        return [...prevFilters, filter];
+      }
+    });
   }, []);
 
+  // Handler for the "Apply Filters" button in the sidebar
+  const handleApplyFilters = useCallback(() => {
+    setActiveFilters([...pendingFilters]);
+    // Optionally close the sidebar after applying filters
+    setIsSidebarOpen(false);
+  }, [pendingFilters]);
+  
+  // Handler to toggle the sidebar
+  const toggleSidebar = useCallback(() => {
+    if (!isSidebarOpen) {
+      // When opening the sidebar, sync pending filters with active filters
+      setPendingFilters([...activeFilters]);
+    }
+    setIsSidebarOpen(prev => !prev);
+  }, [isSidebarOpen, activeFilters]);
 
   // =======================================================================
   // COMPONENT RENDERING (JSX)
