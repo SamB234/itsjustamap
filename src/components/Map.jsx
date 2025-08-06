@@ -74,236 +74,44 @@ export default function Map() {
   const [pendingFilters, setPendingFilters] = useState([]);
 
   // =======================================================================
-  // MAP INITIALIZATION & LIFECYCLE
-  // =======================================================================
-
-  useEffect(() => {
-    if (mapLoaded.current) return;
-
-    mapboxgl.accessToken = mapboxgl.accessToken;
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [lng, lat],
-      zoom: zoom,
-      interactive: true,
-      dragRotate: false,
-      pitchWithRotate: false,
-      touchPitch: false,
-    });
-
-    map.current.on('load', () => {
-      mapLoaded.current = true;
-      console.log('Map loaded and ready.');
-
-      if (map.current.touchZoomRotate) {
-        map.current.touchZoomRotate.disableRotation();
-      }
-
-      // Add Sources and Layers for Pins
-      map.current.addSource(MARKER_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.current.addLayer({
-        id: MARKER_OUTLINE_LAYER_ID,
-        type: 'circle',
-        source: MARKER_SOURCE_ID,
-        paint: {
-          'circle-radius': 10,
-          'circle-color': '#007BFF',
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#FFFFFF',
-          'circle-opacity': 1,
-        }
-      });
-      map.current.addLayer({
-        id: MARKER_FILL_LAYER_ID,
-        type: 'circle',
-        source: MARKER_SOURCE_ID,
-        paint: {
-          'circle-radius': 8,
-          'circle-color': [
-            'case',
-            ['==', ['get', 'id'], hoveredPinId],
-            '#FFFFFF',
-            '#007BFF'
-          ],
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#007BFF',
-          'circle-opacity': 1,
-        }
-      });
-      // Add Sources and Layers for Directional Arrows and Arc
-      map.current.addSource(ARC_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.current.addLayer({
-        id: ARC_FILL_LAYER_ID,
-        type: 'fill',
-        source: ARC_SOURCE_ID,
-        paint: {
-          'fill-color': '#00BFFF',
-          'fill-opacity': 0.25,
-        }
-      });
-      map.current.addLayer({
-        id: ARC_LINE_LAYER_ID,
-        type: 'line',
-        source: ARC_SOURCE_ID,
-        paint: {
-          'line-color': '#00BFFF',
-          'line-width': 2,
-        },
-      });
-
-      // Add Source and Layer for Connection Lines
-      map.current.addSource(CONNECTION_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.current.addLayer({
-        id: CONNECTION_LAYER_ID,
-        type: 'line',
-        source: CONNECTION_SOURCE_ID,
-        paint: {
-          'line-color': '#007BFF',
-          'line-width': 2,
-          'line-dasharray': [2, 2],
-        },
-      });
-    });
-
-    map.current.on('move', () => {
-      setLng(map.current.getCenter().lng.toFixed(4));
-      setLat(map.current.getCenter().lat.toFixed(4));
-      setZoom(map.current.getZoom().toFixed(2));
-    });
-
-    return () => {
-      if (map.current) {
-        map.current.remove();
-        map.current = null;
-        mapLoaded.current = false;
-      }
-    };
-  }, []);
-
-  // =======================================================================
-  // DYNAMIC MAP UPDATES (useEffect hooks)
-  // =======================================================================
-  
-  // This useEffect forces a re-render of the markers on every map move,
-  // ensuring they stay aligned with their geographic coordinates.
-  useEffect(() => {
-    if (!map.current || !mapLoaded.current) return;
-
-    const updateMarkerPositions = () => {
-      // Trigger a state update to re-render the dropped pins
-      setDroppedPins(prevPins => [...prevPins]);
-    };
-
-    map.current.on('move', updateMarkerPositions);
-
-    return () => {
-      if (map.current) {
-        map.current.off('move', updateMarkerPositions);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!map.current || !mapLoaded.current) return;
-    const pinFeatures = droppedPins.map(pin => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: pin.coords },
-      properties: { id: pin.id }
-    }));
-    map.current.getSource(MARKER_SOURCE_ID)?.setData({
-      type: 'FeatureCollection',
-      features: pinFeatures
-    });
-  }, [droppedPins]);
-
-  useEffect(() => {
-    if (!map.current || !mapLoaded.current) return;
-    map.current.setPaintProperty(MARKER_FILL_LAYER_ID, 'circle-color', [
-      'case',
-      ['==', ['get', 'id'], hoveredPinId],
-      '#FFFFFF',
-      '#007BFF'
-    ]);
-  }, [hoveredPinId]);
-
-  useEffect(() => {
-    console.log("useEffect [drawnLines] triggered. drawnLines count:", drawnLines.length);
-
-    const updateMapLines = () => {
-      if (map.current && mapLoaded.current && map.current.getSource(CONNECTION_SOURCE_ID)) {
-        const lineFeatures = drawnLines.map(line => line.geojson);
-        try {
-          map.current.getSource(CONNECTION_SOURCE_ID).setData({
-            type: 'FeatureCollection',
-            features: lineFeatures
-          });
-          console.log("Curved line source updated successfully.");
-        } catch (e) {
-          console.error("Error setting data for curved line source:", e);
-        }
-      }
-    };
-
-    if (mapLoaded.current) {
-      updateMapLines();
-    } else {
-      map.current.once('load', updateMapLines);
-    }
-  }, [drawnLines]);
-
-  useEffect(() => {
-    if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
-      setPopupPos(null);
-      if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
-        map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
-      }
-      return;
-    }
-
-    const updateArc = () => {
-      try {
-        const point = map.current.project([activePopupData.lng, activePopupData.lat]);
-        const popupTransform = activePopupData.direction === 'North' ? '30%' : '-130%';
-        setPopupPos({ x: point.x, y: point.y, transform: popupTransform });
-        
-        if (map.current.getSource(ARC_SOURCE_ID)) {
-          const source = map.current.getSource(ARC_SOURCE_ID);
-          let geojson;
-          
-          if (activePopupData.direction === 'Overview') {
-            geojson = { type: 'FeatureCollection', features: [] };
-          } else {
-            const centerCoords = [activePopupData.lng, activePopupData.lat];
-            const arcPoints = getArcPoints(centerCoords, selectedRadius, activePopupData.direction);
-            geojson = {
-              type: 'FeatureCollection',
-              features: arcPoints.length > 0 ? [{
-                type: 'Feature',
-                geometry: { type: 'Polygon', coordinates: [arcPoints] },
-                properties: { direction: activePopupData.direction }
-              }] : []
-            };
-          }
-          source.setData(geojson);
-        }
-      } catch (error) {
-        console.error("Error projecting popup coordinates or updating arc:", error);
-        setPopupPos(null);
-      }
-    };
-
-    if (mapLoaded.current) {
-      updateArc();
-    } else {
-      map.current.once('load', updateArc);
-    }
-    
-  }, [activePopupData, lng, lat, zoom, selectedRadius]);
-
-  // =======================================================================
   // CALLBACK FUNCTIONS (useCallback)
   // =======================================================================
+
+  // Handler to close the active popup
+  const handleClosePopup = useCallback(() => {
+    setActivePopupData(null);
+    setSelectedRadius(5);
+    if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
+      map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
+    }
+    setConnectionMode(false);
+    setConnectingMarkerId(null);
+  }, []);
+
+  // Handler to remove a pin and any associated lines
+  const handleRemoveMarker = useCallback((pinIdToRemove) => {
+    const removedPin = droppedPins.find(p => p.id === pinIdToRemove);
+    if (!removedPin) return;
+    setDroppedPins((prevPins) => prevPins.filter((pin) => pin.id !== pinIdToRemove));
+    setDrawnLines((prevLines) =>
+      prevLines.filter(
+        (line) => line.geojson.properties.fromId !== pinIdToRemove && line.geojson.properties.toId !== pinIdToRemove
+      )
+    );
+    if (activePopupData && activePopupData.pinId === pinIdToRemove) {
+      setActivePopupData(null);
+    }
+    if (connectionMode && connectingMarkerId === pinIdToRemove) {
+      setConnectionMode(false);
+      setConnectingMarkerId(null);
+    }
+    setHoveredPinId(null);
+    setSelectedRadius(5);
+    if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
+      map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
+    }
+  }, [activePopupData, connectionMode, connectingMarkerId, droppedPins]);
+
   const dropPinAtCenter = useCallback(() => {
     if (!map.current) return;
     const center = map.current.getCenter();
@@ -436,7 +244,7 @@ export default function Map() {
       } else {
         const placeName = await fetchPlaceName(lng, lat);
         const direction = 'Overview';
-        
+
         // Find existing cached content for the Overview direction, regardless of filters
         let cachedContent = null;
         for (const key in pin.aiCache) {
@@ -445,7 +253,7 @@ export default function Map() {
             break; // Use the first one we find
           }
         }
-        
+
         // Check if the current cache key (with active filters) exists to determine if stale
         const currentCacheKey = direction + '-' + activeFilters.sort().join(',');
         const isStale = cachedContent && !pin.aiCache[currentCacheKey];
@@ -485,16 +293,16 @@ export default function Map() {
           break; // Use the first one we find
         }
       }
-      
+
       // Determine if this content is stale by checking if a cache key for the
       // current filters exists.
       const currentCacheKey = direction + '-' + activeFilters.sort().join(',');
       const isStale = cachedContent && !pin.aiCache[currentCacheKey];
 
       const initialContent = cachedContent || 'Adjust radius and click "Explore" to get suggestions.';
-      
+
       setSelectedRadius(lastRadius);
-      
+
       if (pin.lastRadius?.[direction] && pin.lastDirection === direction) {
         const centerCoords = [pin.lng, pin.lat];
         const arcPoints = getArcPoints(centerCoords, pin.lastRadius[direction], direction);
@@ -516,14 +324,14 @@ export default function Map() {
     },
     [fetchPlaceName, activeFilters]
   );
-  
+
   // Handler for the "Explore" button inside the popup
   const handleExploreDirection = useCallback(() => {
     if (!activePopupData) return;
     const { pinId, placeName, direction, lng, lat } = activePopupData;
     const cacheKey = direction + '-' + activeFilters.sort().join(',');
     const currentPin = droppedPins.find(p => p.id === pinId);
-    
+
     if (currentPin && currentPin.aiCache[cacheKey]) {
       setActivePopupData(prev => ({
         ...prev, loading: false, aiContent: currentPin.aiCache[cacheKey], error: null,
@@ -531,7 +339,7 @@ export default function Map() {
     } else {
       fetchAISuggestion(pinId, placeName, direction, lng, lat, selectedRadius, activeFilters);
     }
-    
+
     // Store the last used radius and direction
     setDroppedPins(prevPins =>
       prevPins.map(p => {
@@ -570,41 +378,6 @@ export default function Map() {
     }
   }, [activePopupData]);
 
-  // Handler to close the active popup
-  const handleClosePopup = useCallback(() => {
-    setActivePopupData(null);
-    setSelectedRadius(5);
-    if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
-      map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
-    }
-    setConnectionMode(false);
-    setConnectingMarkerId(null);
-  }, []);
-
-  // Handler to remove a pin and any associated lines
-  const handleRemoveMarker = useCallback((pinIdToRemove) => {
-    const removedPin = droppedPins.find(p => p.id === pinIdToRemove);
-    if (!removedPin) return;
-    setDroppedPins((prevPins) => prevPins.filter((pin) => pin.id !== pinIdToRemove));
-    setDrawnLines((prevLines) =>
-      prevLines.filter(
-        (line) => line.geojson.properties.fromId !== pinIdToRemove && line.geojson.properties.toId !== pinIdToRemove
-      )
-    );
-    if (activePopupData && activePopupData.pinId === pinIdToRemove) {
-      setActivePopupData(null);
-    }
-    if (connectionMode && connectingMarkerId === pinIdToRemove) {
-      setConnectionMode(false);
-      setConnectingMarkerId(null);
-    }
-    setHoveredPinId(null);
-    setSelectedRadius(5);
-    if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
-      map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
-    }
-  }, [activePopupData, connectionMode, connectingMarkerId, droppedPins]);
-
   // Handler for the radius slider
   const handleRadiusChange = useCallback((event) => {
     const sliderValue = Number(event.target.value);
@@ -614,7 +387,7 @@ export default function Map() {
       ...prev, loading: false, aiContent: 'Adjust radius and click "Explore" to get suggestions.', error: null, radius: nonlinearRadius
     }));
   }, []);
-  
+
   // Handler for when a filter checkbox is toggled
   const handleFilterToggle = useCallback((filter) => {
     setPendingFilters(prevFilters => {
@@ -631,7 +404,7 @@ export default function Map() {
     setActiveFilters([...pendingFilters]);
     setIsSidebarOpen(false);
   }, [pendingFilters]);
-  
+
   // Handler to toggle the sidebar
   const toggleSidebar = useCallback(() => {
     if (!isSidebarOpen) {
@@ -639,6 +412,247 @@ export default function Map() {
     }
     setIsSidebarOpen(prev => !prev);
   }, [isSidebarOpen, activeFilters]);
+
+  // =======================================================================
+  // MAP INITIALIZATION & LIFECYCLE
+  // =======================================================================
+
+  useEffect(() => {
+    if (mapLoaded.current) return;
+
+    mapboxgl.accessToken = mapboxgl.accessToken;
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [lng, lat],
+      zoom: zoom,
+      interactive: true,
+      dragRotate: false,
+      pitchWithRotate: false,
+      touchPitch: false,
+    });
+
+    map.current.on('load', () => {
+      mapLoaded.current = true;
+      console.log('Map loaded and ready.');
+
+      if (map.current.touchZoomRotate) {
+        map.current.touchZoomRotate.disableRotation();
+      }
+
+      // Add Sources and Layers for Pins
+      map.current.addSource(MARKER_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.current.addLayer({
+        id: MARKER_OUTLINE_LAYER_ID,
+        type: 'circle',
+        source: MARKER_SOURCE_ID,
+        paint: {
+          'circle-radius': 10,
+          'circle-color': '#007BFF',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#FFFFFF',
+          'circle-opacity': 1,
+        }
+      });
+      map.current.addLayer({
+        id: MARKER_FILL_LAYER_ID,
+        type: 'circle',
+        source: MARKER_SOURCE_ID,
+        paint: {
+          'circle-radius': 8,
+          'circle-color': [
+            'case',
+            ['==', ['get', 'id'], hoveredPinId],
+            '#FFFFFF',
+            '#007BFF'
+          ],
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#007BFF',
+          'circle-opacity': 1,
+        }
+      });
+      // Add Sources and Layers for Directional Arrows and Arc
+      map.current.addSource(ARC_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.current.addLayer({
+        id: ARC_FILL_LAYER_ID,
+        type: 'fill',
+        source: ARC_SOURCE_ID,
+        paint: {
+          'fill-color': '#00BFFF',
+          'fill-opacity': 0.25,
+        }
+      });
+      map.current.addLayer({
+        id: ARC_LINE_LAYER_ID,
+        type: 'line',
+        source: ARC_SOURCE_ID,
+        paint: {
+          'line-color': '#00BFFF',
+          'line-width': 2,
+        },
+      });
+
+      // Add Source and Layer for Connection Lines
+      map.current.addSource(CONNECTION_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.current.addLayer({
+        id: CONNECTION_LAYER_ID,
+        type: 'line',
+        source: CONNECTION_SOURCE_ID,
+        paint: {
+          'line-color': '#007BFF',
+          'line-width': 2,
+          'line-dasharray': [2, 2],
+        },
+      });
+    });
+
+    map.current.on('move', () => {
+      setLng(map.current.getCenter().lng.toFixed(4));
+      setLat(map.current.getCenter().lat.toFixed(4));
+      setZoom(map.current.getZoom().toFixed(2));
+    });
+
+    // New click listener to close the popup when clicking on the map itself
+    map.current.on('click', (e) => {
+      const features = map.current.queryRenderedFeatures(e.point, {
+        layers: [MARKER_FILL_LAYER_ID, MARKER_OUTLINE_LAYER_ID]
+      });
+
+      // If no features were clicked and a popup is open, close it.
+      if (!features.length && activePopupData) {
+        handleClosePopup();
+      }
+    });
+
+    return () => {
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+        mapLoaded.current = false;
+      }
+    };
+  }, [activePopupData, handleClosePopup]);
+
+  // =======================================================================
+  // DYNAMIC MAP UPDATES (useEffect hooks)
+  // =======================================================================
+
+  // This useEffect forces a re-render of the markers on every map move,
+  // ensuring they stay aligned with their geographic coordinates.
+  useEffect(() => {
+    if (!map.current || !mapLoaded.current) return;
+
+    const updateMarkerPositions = () => {
+      // Trigger a state update to re-render the dropped pins
+      setDroppedPins(prevPins => [...prevPins]);
+    };
+
+    map.current.on('move', updateMarkerPositions);
+
+    return () => {
+      if (map.current) {
+        map.current.off('move', updateMarkerPositions);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!map.current || !mapLoaded.current) return;
+    const pinFeatures = droppedPins.map(pin => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: pin.coords },
+      properties: { id: pin.id }
+    }));
+    map.current.getSource(MARKER_SOURCE_ID)?.setData({
+      type: 'FeatureCollection',
+      features: pinFeatures
+    });
+  }, [droppedPins]);
+
+  useEffect(() => {
+    if (!map.current || !mapLoaded.current) return;
+    map.current.setPaintProperty(MARKER_FILL_LAYER_ID, 'circle-color', [
+      'case',
+      ['==', ['get', 'id'], hoveredPinId],
+      '#FFFFFF',
+      '#007BFF'
+    ]);
+  }, [hoveredPinId]);
+
+  useEffect(() => {
+    console.log("useEffect [drawnLines] triggered. drawnLines count:", drawnLines.length);
+
+    const updateMapLines = () => {
+      if (map.current && mapLoaded.current && map.current.getSource(CONNECTION_SOURCE_ID)) {
+        const lineFeatures = drawnLines.map(line => line.geojson);
+        try {
+          map.current.getSource(CONNECTION_SOURCE_ID).setData({
+            type: 'FeatureCollection',
+            features: lineFeatures
+          });
+          console.log("Curved line source updated successfully.");
+        } catch (e) {
+          console.error("Error setting data for curved line source:", e);
+        }
+      }
+    };
+
+    if (mapLoaded.current) {
+      updateMapLines();
+    } else {
+      map.current.once('load', updateMapLines);
+    }
+  }, [drawnLines]);
+
+  useEffect(() => {
+    if (!map.current || !activePopupData || typeof activePopupData.lng !== 'number' || typeof activePopupData.lat !== 'number' || isNaN(activePopupData.lng) || isNaN(activePopupData.lat)) {
+      setPopupPos(null);
+      if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
+        map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
+      }
+      return;
+    }
+
+    const updateArc = () => {
+      try {
+        const point = map.current.project([activePopupData.lng, activePopupData.lat]);
+        const popupTransform = activePopupData.direction === 'North' ? '30%' : '-130%';
+        setPopupPos({ x: point.x, y: point.y, transform: popupTransform });
+
+        if (map.current.getSource(ARC_SOURCE_ID)) {
+          const source = map.current.getSource(ARC_SOURCE_ID);
+          let geojson;
+
+          if (activePopupData.direction === 'Overview') {
+            geojson = { type: 'FeatureCollection', features: [] };
+          } else {
+            const centerCoords = [activePopupData.lng, activePopupData.lat];
+            const arcPoints = getArcPoints(centerCoords, selectedRadius, activePopupData.direction);
+            geojson = {
+              type: 'FeatureCollection',
+              features: arcPoints.length > 0 ? [{
+                type: 'Feature',
+                geometry: { type: 'Polygon', coordinates: [arcPoints] },
+                properties: { direction: activePopupData.direction }
+              }] : []
+            };
+          }
+          source.setData(geojson);
+        }
+      } catch (error) {
+        console.error("Error projecting popup coordinates or updating arc:", error);
+        setPopupPos(null);
+      }
+    };
+
+    if (mapLoaded.current) {
+      updateArc();
+    } else {
+      map.current.once('load', updateArc);
+    }
+
+  }, [activePopupData, lng, lat, zoom, selectedRadius]);
+
 
   // =======================================================================
   // COMPONENT RENDERING (JSX)
@@ -678,7 +692,7 @@ export default function Map() {
         const [pinLng, pinLat] = pin.coords;
         if (!map.current || typeof pinLng !== 'number' || typeof pinLat !== 'number' || isNaN(pinLng) || isNaN(pinLat)) return null;
         const point = map.current.project([pinLng, pinLat]);
-        
+
         return (
           <div
             key={pin.id}
@@ -699,20 +713,20 @@ export default function Map() {
       {/* Conditional rendering for the main AI suggestion popup */}
       {activePopupData && popupPos && map.current && typeof activePopupData.lng === 'number' && !isNaN(activePopupData.lng) && typeof activePopupData.lat === 'number' && !isNaN(activePopupData.lat) && (
         <div className="absolute z-20 p-4 pointer-events-auto" style={{
-            left: popupPos.x,
-            top: popupPos.y,
-            transform: `translate(-50%, ${activePopupData.direction === 'North' ? '30%' : '-130%'})`,
-            width: '320px',
-            background: 'rgba(240, 240, 240, 0.95)', backdropFilter: 'blur(8px)', borderRadius: '12px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)', color: '#111', fontFamily: 'system-ui, sans-serif',
-          }} onClick={(e) => e.stopPropagation()}
+          left: popupPos.x,
+          top: popupPos.y,
+          transform: `translate(-50%, ${activePopupData.direction === 'North' ? '30%' : '-130%'})`,
+          width: '320px',
+          background: 'rgba(240, 240, 240, 0.95)', backdropFilter: 'blur(8px)', borderRadius: '12px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)', color: '#111', fontFamily: 'system-ui, sans-serif',
+        }} onClick={(e) => e.stopPropagation()}
         >
           {/* Popup header */}
           <div className="flex justify-between items-center mb-2">
             <strong className="text-lg text-blue-700">{activePopupData.placeName || 'Loading...'}</strong>
             <button onClick={handleClosePopup} aria-label="Close popup" className="text-gray-600 hover:text-gray-900 font-bold text-xl leading-none">×</button>
           </div>
-          
+
           {/* Stale content warning */}
           {activePopupData.isStale && (
             <div className="bg-yellow-100 text-yellow-800 p-2 rounded-lg text-xs mb-2">
@@ -778,6 +792,13 @@ export default function Map() {
           <p className="text-sm text-gray-600">Manage connections between your markers.</p>
         </div>
       </Sidebar>
+
+      <div className="absolute bottom-4 right-4 p-2 bg-white rounded-full shadow-lg z-10 flex items-center justify-center">
+        <button onClick={toggleSidebar} className="text-2xl text-blue-600 p-2">
+          {isSidebarOpen ? '❮' : '❯'}
+        </button>
+      </div>
+
     </>
   );
 }
