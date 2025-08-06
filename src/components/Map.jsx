@@ -652,8 +652,16 @@ export default function Map() {
         </div>
       )}
 
-      {/* The Sidebar component */}
-      <Sidebar isOpen={isSidebarOpen} onClose={toggleSidebar}>
+ {/* The Sidebar component */}
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={toggleSidebar}
+        filterOptions={filterOptions}
+        activeFilters={activeFilters}
+        pendingFilters={pendingFilters}
+        onFilterToggle={handleFilterToggle}
+        onApplyFilters={handleApplyFilters}
+      >
         <p className="text-gray-700">This is where your trip planning tools will go!</p>
         <div className="mt-4 p-3 bg-white rounded-lg shadow-inner">
           <h3 className="font-semibold mb-2">Filters (Coming Soon)</h3>
