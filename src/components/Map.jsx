@@ -60,7 +60,7 @@ export default function Map() {
       interactive: true,
       dragRotate: false, // Prevents 3D rotation
       pitchWithRotate: false, // Prevents pitch on rotation
-      touchZoomRotate: false, // Prevents touch rotation on mobile
+      // Removed the touchZoomRotate: false line to re-enable mobile zoom
       touchPitch: false, // Prevents touch pitch
     });
 
@@ -79,6 +79,12 @@ export default function Map() {
 
     map.current.on('load', () => {
       mapLoaded.current = true;
+      
+      // Fix for mobile zoom: This disables only the rotation part of the handler
+      if (map.current.touchZoomRotate) {
+        map.current.touchZoomRotate.disableRotation();
+      }
+
       // Existing Arc Source and Layer additions
       if (!map.current.getSource(ARC_SOURCE_ID)) {
         map.current.addSource(ARC_SOURCE_ID, {
@@ -99,7 +105,7 @@ export default function Map() {
           paint: {
             'fill-color': '#00BFFF',
             'fill-opacity': 0.25,
-            'fill-outline-color': '#1d4ed8' // Updated to match new brand blue
+            'fill-outline-color': '#1d4ed8'
           }
         });
 
@@ -109,7 +115,7 @@ export default function Map() {
           source: ARC_SOURCE_ID,
           layout: {},
           paint: {
-            'line-color': '#1d4ed8', // Updated to match new brand blue
+            'line-color': '#1d4ed8',
             'line-width': 2,
             'line-opacity': 0.75
           }
@@ -138,8 +144,8 @@ export default function Map() {
               'line-cap': 'round'
             },
             paint: {
-              'line-color': '#1d4ed8', // Updated to match brand blue
-              'line-width': 2,        // Thinner line
+              'line-color': '#1d4ed8',
+              'line-width': 2,
               'line-opacity': 1,
             }
           }
