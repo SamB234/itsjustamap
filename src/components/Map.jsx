@@ -612,7 +612,7 @@ export default function Map() {
         );
       })}
 
-      {/* Conditional rendering for the main AI suggestion popup */}
+{/* Conditional rendering for the main AI suggestion popup */}
       {activePopupData && popupPos && map.current && typeof activePopupData.lng === 'number' && !isNaN(activePopupData.lng) && typeof activePopupData.lat === 'number' && !isNaN(activePopupData.lat) && (
         <div className="absolute z-20 p-4 pointer-events-auto" style={{
             left: popupPos.x, top: popupPos.y, transform: 'translate(-50%, -130%)', width: '320px',
@@ -625,6 +625,14 @@ export default function Map() {
             <strong className="text-lg text-blue-700">{activePopupData.placeName || 'Loading...'}</strong>
             <button onClick={handleClosePopup} aria-label="Close popup" className="text-gray-600 hover:text-gray-900 font-bold text-xl leading-none">×</button>
           </div>
+          
+          {/* Stale content warning */}
+          {activePopupData.isStale && (
+            <div className="bg-yellow-100 text-yellow-800 p-2 rounded-lg text-xs mb-2">
+              Note: This information was generated with different filters.
+            </div>
+          )}
+
           <div className="text-sm text-gray-500 mb-2">
             {activePopupData.direction === 'Overview' ? 'Discover this area' : `Explore toward the ${directionMap[activePopupData.direction] || activePopupData.direction}`}
           </div>
@@ -648,7 +656,7 @@ export default function Map() {
           <div className="flex flex-col gap-2">
             {activePopupData.direction !== 'Overview' && (
               <button className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-700 hover:text-gray-100 transition" onClick={handleExploreDirection}>
-                Explore {directionMap[activePopupData.direction] || activePopupData.direction}
+                {activePopupData.isStale ? `Update with current filters` : `Explore ${directionMap[activePopupData.direction] || activePopupData.direction}`}
               </button>
             )}
             {(activePopupData.direction === 'Overview' || (!activePopupData.loading && !activePopupData.error && activePopupData.aiContent !== 'Adjust radius and click "Explore" to get suggestions.')) && (
