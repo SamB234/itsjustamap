@@ -34,7 +34,8 @@ const MARKER_OUTLINE_LAYER_ID = 'markers-outline';
 const ARROW_SOURCE_ID = 'arrow-source';
 const ARROW_LAYER_ID = 'arrow-layer';
 const ARC_SOURCE_ID = 'arc-source';
-const ARC_LAYER_ID = 'arc-layer';
+const ARC_LINE_LAYER_ID = 'arc-line-layer'; // Renamed for clarity
+const ARC_FILL_LAYER_ID = 'arc-fill-layer'; // New layer for the fill
 const CONNECTION_SOURCE_ID = 'connection-source';
 const CONNECTION_LAYER_ID = 'connection-layer';
 
@@ -48,30 +49,29 @@ export default function Map() {
   // =======================================================================
 
   // useRef is used for mutable values that don't trigger re-renders
-  const mapContainer = useRef(null); // DOM element for the map
-  const map = useRef(null);         // The Mapbox map instance itself
-  const mapLoaded = useRef(false);  // Flag to ensure map is loaded before
-                                    // adding sources/layers
+  const mapContainer = useRef(null);
+  const map = useRef(null);
+  const mapLoaded = useRef(false);
 
   // useState is for variables that, when updated, should re-render the component
   const [lng, setLng] = useState(-0.1276);
   const [lat, setLat] = useState(51.5074);
-  const [zoom, setZoom] = useState(9); // New state to track the map's zoom level
-  const [droppedPins, setDroppedPins] = useState([]); // Stores all dropped pins
-  const [hoveredPinId, setHoveredPinId] = useState(null); // Tracks which pin is hovered
-  const [activePopupData, setActivePopupData] = useState(null); // Data for the currently open popup
-  const [popupPos, setPopupPos] = useState(null); // Screen coordinates for the popup
-  const [selectedRadius, setSelectedRadius] = useState(5); // Radius for directional exploration
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Sidebar visibility
-  const [drawnLines, setDrawnLines] = useState([]); // Stores all connection lines
-  const [connectionMode, setConnectionMode] = useState(false); // Flag for connection mode
-  const [connectingMarkerId, setConnectingMarkerId] = useState(null); // ID of the first marker to connect
-  const [connectionSuccess, setConnectionSuccess] = useState(null); // Message for a successful connection
+  const [zoom, setZoom] = useState(9);
+  const [droppedPins, setDroppedPins] = useState([]);
+  const [hoveredPinId, setHoveredPinId] = useState(null);
+  const [activePopupData, setActivePopupData] = useState(null);
+  const [popupPos, setPopupPos] = useState(null);
+  const [selectedRadius, setSelectedRadius] = useState(5);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [drawnLines, setDrawnLines] = useState([]);
+  const [connectionMode, setConnectionMode] = useState(false);
+  const [connectingMarkerId, setConnectingMarkerId] = useState(null);
+  const [connectionSuccess, setConnectionSuccess] = useState(null);
 
   // New state for filters
   const filterOptions = ['nature', 'culture', 'adventure', 'sports', 'beach', 'food', 'nightlife'];
-  const [activeFilters, setActiveFilters] = useState([]); // The filters currently applied
-  const [pendingFilters, setPendingFilters] = useState([]); // The filters selected in the sidebar, not yet applied
+  const [activeFilters, setActiveFilters] = useState([]);
+  const [pendingFilters, setPendingFilters] = useState([]);
 
   // =======================================================================
   // MAP INITIALIZATION & LIFECYCLE
@@ -123,8 +123,8 @@ export default function Map() {
           'circle-color': [
             'case',
             ['==', ['get', 'id'], hoveredPinId],
-            '#FFFFFF', // White when hovered
-            '#007BFF'  // Blue when not hovered
+            '#FFFFFF',
+            '#007BFF'
           ],
           'circle-stroke-width': 2,
           'circle-stroke-color': '#007BFF',
@@ -132,28 +132,26 @@ export default function Map() {
         }
       });
       // Add Sources and Layers for Directional Arrows and Arc
-      map.current.addSource(ARROW_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.current.addLayer({
-        id: ARROW_LAYER_ID,
-        type: 'symbol',
-        source: ARROW_SOURCE_ID,
-        layout: {
-          'icon-image': ['get', 'icon'],
-          'icon-rotate': ['get', 'rotate'],
-          'icon-size': 0.8,
-          'icon-allow-overlap': true,
-        },
-      });
       map.current.addSource(ARC_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.current.addLayer({
-        id: ARC_LAYER_ID,
+        id: ARC_FILL_LAYER_ID,
+        type: 'fill',
+        source: ARC_SOURCE_ID,
+        paint: {
+          'fill-color': '#00BFFF',
+          'fill-opacity': 0.25,
+        }
+      });
+      map.current.addLayer({
+        id: ARC_LINE_LAYER_ID,
         type: 'line',
         source: ARC_SOURCE_ID,
         paint: {
-          'line-color': '#007BFF',
+          'line-color': '#00BFFF',
           'line-width': 2,
         },
       });
+
       // Add Source and Layer for Connection Lines
       map.current.addSource(CONNECTION_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.current.addLayer({
@@ -171,7 +169,7 @@ export default function Map() {
     map.current.on('move', () => {
       setLng(map.current.getCenter().lng.toFixed(4));
       setLat(map.current.getCenter().lat.toFixed(4));
-      setZoom(map.current.getZoom().toFixed(2)); // Update zoom state
+      setZoom(map.current.getZoom().toFixed(2));
     });
 
     return () => {
@@ -247,12 +245,13 @@ export default function Map() {
     const updateArc = () => {
       try {
         const point = map.current.project([activePopupData.lng, activePopupData.lat]);
-        setPopupPos({ x: point.x, y: point.y });
-
+        const popupTransform = activePopupData.direction === 'North' ? '30%' : '-130%';
+        setPopupPos({ x: point.x, y: point.y, transform: popupTransform });
+        
         if (map.current.getSource(ARC_SOURCE_ID)) {
           const source = map.current.getSource(ARC_SOURCE_ID);
           let geojson;
-
+          
           if (activePopupData.direction === 'Overview') {
             geojson = { type: 'FeatureCollection', features: [] };
           } else {
@@ -286,7 +285,6 @@ export default function Map() {
   // =======================================================================
   // CALLBACK FUNCTIONS (useCallback)
   // =======================================================================
-
   const dropPinAtCenter = useCallback(() => {
     if (!map.current) return;
     const center = map.current.getCenter();
@@ -419,8 +417,7 @@ export default function Map() {
       } else {
         const placeName = await fetchPlaceName(lng, lat);
         const direction = 'Overview';
-        setSelectedRadius(5);
-
+        
         // Find existing cached content for the Overview direction, regardless of filters
         let cachedContent = null;
         for (const key in pin.aiCache) {
@@ -462,11 +459,10 @@ export default function Map() {
 
       // Find any existing cached content for this direction to display
       let cachedContent = null;
-      let lastRadius = 5;
+      let lastRadius = pin.lastRadius?.[direction] || 5;
       for (const key in pin.aiCache) {
         if (key.startsWith(direction + '-')) {
           cachedContent = pin.aiCache[key];
-          lastRadius = pin.lastRadius?.[direction] || 5;
           break; // Use the first one we find
         }
       }
@@ -480,12 +476,18 @@ export default function Map() {
       
       setSelectedRadius(lastRadius);
       
-      // If there's an existing arc, draw it on the map
       if (pin.lastRadius?.[direction] && pin.lastDirection === direction) {
-        const destination = getDestinationPoint(pin.coords, direction, pin.lastRadius[direction]);
-        const arcGeoJSON = getCurvedArc([pin.coords, destination]);
+        const centerCoords = [pin.lng, pin.lat];
+        const arcPoints = getArcPoints(centerCoords, pin.lastRadius[direction], direction);
         if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
-          map.current.getSource(ARC_SOURCE_ID).setData(arcGeoJSON);
+          map.current.getSource(ARC_SOURCE_ID).setData({
+            type: 'FeatureCollection',
+            features: arcPoints.length > 0 ? [{
+              type: 'Feature',
+              geometry: { type: 'Polygon', coordinates: [arcPoints] },
+              properties: { direction }
+            }] : []
+          });
         }
       }
 
@@ -526,10 +528,17 @@ export default function Map() {
     );
 
     // Update the arc on the map
-    const destination = getDestinationPoint([lng, lat], direction, selectedRadius);
-    const arcGeoJSON = getCurvedArc([[lng, lat], destination]);
+    const centerCoords = [lng, lat];
+    const arcPoints = getArcPoints(centerCoords, selectedRadius, direction);
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
-      map.current.getSource(ARC_SOURCE_ID).setData(arcGeoJSON);
+      map.current.getSource(ARC_SOURCE_ID).setData({
+        type: 'FeatureCollection',
+        features: arcPoints.length > 0 ? [{
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: [arcPoints] },
+          properties: { direction }
+        }] : []
+      });
     }
   }, [activePopupData, fetchAISuggestion, selectedRadius, droppedPins, activeFilters]);
 
@@ -579,10 +588,11 @@ export default function Map() {
 
   // Handler for the radius slider
   const handleRadiusChange = useCallback((event) => {
-    const newRadius = Number(event.target.value);
-    setSelectedRadius(newRadius);
+    const sliderValue = Number(event.target.value);
+    const nonlinearRadius = Math.round(1000 * Math.pow(sliderValue / 100, 2)); // Corrected non-linear mapping
+    setSelectedRadius(nonlinearRadius);
     setActivePopupData(prev => ({
-      ...prev, loading: false, aiContent: 'Adjust radius and click "Explore" to get suggestions.', error: null, radius: newRadius
+      ...prev, loading: false, aiContent: 'Adjust radius and click "Explore" to get suggestions.', error: null, radius: nonlinearRadius
     }));
   }, []);
   
@@ -701,7 +711,7 @@ export default function Map() {
               <label htmlFor="radius-slider" className="block text-sm font-medium text-gray-700 mb-1">
                 Radius: {selectedRadius} km
               </label>
-              <input type="range" id="radius-slider" min="0" max="2000" step={Math.max(10, Math.floor(2000 / (100 * (zoom / 2))))} value={selectedRadius} onChange={handleRadiusChange} className="w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer range-lg" />
+              <input type="range" id="radius-slider" min="0" max="100" step="1" value={Math.sqrt(selectedRadius / 1000) * 100} onChange={handleRadiusChange} className="w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer range-lg" />
             </div>
           )}
 
