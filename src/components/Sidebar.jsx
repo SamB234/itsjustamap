@@ -11,7 +11,6 @@ export default function Sidebar({ isOpen, onClose, filterOptions, activeFilters,
   const sidebarTop = `calc(${navbarHeight} + ${paddingTopFromNavbar})`;
 
   // Define the fixed height for the sidebar in BOTH states
-  // You can adjust this '50vh' value if you prefer a different fixed height
   const fixedSidebarHeight = `calc(100vh / 2)`;  
 
   // Check if pending filters are different from active filters to enable the apply button
@@ -46,6 +45,10 @@ export default function Sidebar({ isOpen, onClose, filterOptions, activeFilters,
         <div className="flex-grow px-4 pb-4">
           <div className="mt-2">
             <h3 className="font-semibold text-gray-800 mb-2">Filters</h3>
+            {/* New descriptive note for users */}
+            <p className="text-xs text-gray-600 mb-4 border-l-2 border-blue-500 pl-2">
+              Suggestions will change based on your selected filters and the "Radius" you set. A larger radius will give you broader suggestions (e.g., cities), while a smaller one will suggest specific attractions (e.g., parks or museums).
+            </p>
             <div className="flex flex-col gap-2 text-sm">
               {filterOptions.map(option => (
                 <label key={option} className="flex items-center space-x-2 cursor-pointer">
