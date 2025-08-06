@@ -184,6 +184,25 @@ export default function Map() {
   // =======================================================================
   // DYNAMIC MAP UPDATES (useEffect hooks)
   // =======================================================================
+  
+  // This useEffect forces a re-render of the markers on every map move,
+  // ensuring they stay aligned with their geographic coordinates.
+  useEffect(() => {
+    if (!map.current || !mapLoaded.current) return;
+
+    const updateMarkerPositions = () => {
+      // Trigger a state update to re-render the dropped pins
+      setDroppedPins(prevPins => [...prevPins]);
+    };
+
+    map.current.on('move', updateMarkerPositions);
+
+    return () => {
+      if (map.current) {
+        map.current.off('move', updateMarkerPositions);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!map.current || !mapLoaded.current) return;
