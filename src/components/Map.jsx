@@ -181,7 +181,7 @@ export default function Map() {
         mapLoaded.current = false;
       }
     };
-  }, [lng, lat, zoom, hoveredPinId]);
+  }, []);
 
   // =======================================================================
   // DYNAMIC MAP UPDATES (useEffect hooks)
