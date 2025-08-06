@@ -327,49 +327,72 @@ export default function Map() {
     [fetchPlaceName, activeFilters]
   );
 
-  // Handler for the "Explore" button inside the popup
-  const handleExploreDirection = useCallback(() => {
-    if (!activePopupData) return;
-    const { pinId, placeName, direction, lng, lat } = activePopupData;
-    const cacheKey = direction + '-' + activeFilters.sort().join(',');
-    const currentPin = droppedPins.find(p => p.id === pinId);
+// Map.jsx
 
-    if (currentPin && currentPin.aiCache[cacheKey]) {
-      setActivePopupData(prev => ({
-        ...prev, loading: false, aiContent: currentPin.aiCache[cacheKey], error: null,
-      }));
+// Find this function and replace it with the one below
+const handleExploreDirection = useCallback(() => {
+    if (!activePopupData) return;
+    const { pinId, placeName, direction, lng, lat, isStale } = activePopupData;
+
+    // Determine the current cache key based on the current radius and filters
+    const cacheKey = direction + '-' + selectedRadius + '-' + activeFilters.sort().join(',');
+
+    const currentPin = droppedPins.find(p => p.id === pinId);
+    
+    // Check if we need to fetch new data. This happens if:
+    // 1. The data is marked as stale (due to radius or filter changes).
+    // 2. The cache key for the current settings doesn't exist.
+    // 3. The current AI content is the default "Adjust radius..." message.
+    if (isStale || !currentPin || !currentPin.aiCache[cacheKey] || activePopupData.aiContent.includes('Adjust radius and click')) {
+
+        setActivePopupData(prev => ({
+            ...prev,
+            loading: true,
+            aiContent: 'Generating suggestions...',
+            error: null,
+            isStale: false, // Reset the stale flag
+        }));
+        
+        fetchAISuggestion(pinId, placeName, direction, lng, lat, selectedRadius, activeFilters);
     } else {
-      fetchAISuggestion(pinId, placeName, direction, lng, lat, selectedRadius, activeFilters);
+        // If the data is not stale and already in the cache, use it directly
+        setActivePopupData(prev => ({
+            ...prev, 
+            loading: false, 
+            aiContent: currentPin.aiCache[cacheKey], 
+            error: null,
+            isStale: false,
+        }));
     }
 
     // Store the last used radius and direction
     setDroppedPins(prevPins =>
-      prevPins.map(p => {
-        if (p.id === pinId) {
-          return {
-            ...p,
-            lastRadius: { ...(p.lastRadius || {}), [direction]: selectedRadius },
-            lastDirection: direction
-          };
-        }
-        return p;
-      })
+        prevPins.map(p => {
+            if (p.id === pinId) {
+                return {
+                    ...p,
+                    lastRadius: { ...(p.lastRadius || {}), [direction]: selectedRadius },
+                    lastDirection: direction
+                };
+            }
+            return p;
+        })
     );
 
     // Update the arc on the map
     const centerCoords = [lng, lat];
     const arcPoints = getArcPoints(centerCoords, selectedRadius, direction);
     if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
-      map.current.getSource(ARC_SOURCE_ID).setData({
-        type: 'FeatureCollection',
-        features: arcPoints.length > 0 ? [{
-          type: 'Feature',
-          geometry: { type: 'Polygon', coordinates: [arcPoints] },
-          properties: { direction }
-        }] : []
-      });
+        map.current.getSource(ARC_SOURCE_ID).setData({
+            type: 'FeatureCollection',
+            features: arcPoints.length > 0 ? [{
+                type: 'Feature',
+                geometry: { type: 'Polygon', coordinates: [arcPoints] },
+                properties: { direction }
+            }] : []
+        });
     }
-  }, [activePopupData, fetchAISuggestion, selectedRadius, droppedPins, activeFilters]);
+}, [activePopupData, fetchAISuggestion, selectedRadius, droppedPins, activeFilters]);
 
   // Handler for the "Connect" button
   const handleConnectToAnotherMarker = useCallback(() => {
@@ -381,23 +404,29 @@ export default function Map() {
   }, [activePopupData]);
   
 
-// Handler for the radius slider
 const handleRadiusChange = useCallback((event) => {
     const sliderValue = Number(event.target.value);
     const nonlinearRadius = Math.round(1000 * Math.pow(sliderValue / 100, 2));
 
-    if (activePopupData?.radius !== nonlinearRadius) {
+    setSelectedRadius(nonlinearRadius);
+
+    // Get the direction from the activePopupData
+    const currentDirection = activePopupData.direction;
+    
+    // Check if the new radius is different from the previously explored radius for the current direction
+    const lastExploredRadius = activePopupData?.radius;
+    
+    if (lastExploredRadius !== nonlinearRadius) {
+        // This marks the content as stale
         setActivePopupData(prev => ({
             ...prev,
             loading: false,
-            aiContent: 'Adjust radius and click "Explore" to get suggestions.',
+            aiContent: prev.aiContent, // Keep the previous content to show until the user clicks 'Explore'
             error: null,
-            radius: nonlinearRadius,
-            isStale: true, // Mark content as stale when radius changes
+            isStale: true, // A new state variable to track staleness due to radius change
+            // Do not update the `radius` property here, only update it on the 'Explore' button click.
         }));
     }
-    
-    setSelectedRadius(nonlinearRadius);
 }, [activePopupData]);
   
 
