@@ -109,6 +109,69 @@ export function getArcPoints(center, radiusKm, direction, sweepAngle = 90, numSe
 }
 
 /**
+ * Calculates a single destination point given a start point, direction, and distance.
+ * @param {[number, number]} center [longitude, latitude]
+ * @param {string} direction 'North', 'South', 'East', 'West'
+ * @param {number} distanceKm Distance in kilometers
+ * @returns {[number, number]} The destination point
+ */
+export function getDestinationPoint(center, direction, distanceKm) {
+    let bearing;
+    switch (direction) {
+        case 'North': bearing = 0; break;
+        case 'East':  bearing = 90; break;
+        case 'South': bearing = 180; break;
+        case 'West':  bearing = 270; break;
+        default:      console.warn(`Invalid direction for destination point: ${direction}`); return center;
+    }
+    return getPointAtDistanceBearing(center, distanceKm, bearing);
+}
+
+/**
+ * Generates GeoJSON for a curved line between two points.
+ * @param {Array<[number, number]>} coordsArray [startCoords, endCoords]
+ * @returns {object} GeoJSON LineString object
+ */
+export function getCurvedArc(coordsArray) {
+    const startCoords = coordsArray[0];
+    const endCoords = coordsArray[1];
+    const midLng = (startCoords[0] + endCoords[0]) / 2;
+    const midLat = (startCoords[1] + endCoords[1]) / 2;
+
+    const dx = endCoords[0] - startCoords[0];
+    const dy = endCoords[1] - startCoords[1];
+
+    let perpX = -dy;
+    let perpY = dx;
+    if (perpY < 0) {
+        perpX = -perpX;
+        perpY = -perpY;
+    }
+
+    const offsetFactor = 0.5;
+    const controlLng = midLng + perpX * offsetFactor;
+    const controlLat = midLat + perpY * offsetFactor;
+
+    const points = [];
+    const numPoints = 50;
+    for (let i = 0; i <= numPoints; i++) {
+        const t = i / numPoints;
+        const x = (1 - t) * (1 - t) * startCoords[0] + 2 * (1 - t) * t * controlLng + t * t * endCoords[0];
+        const y = (1 - t) * (1 - t) * startCoords[1] + 2 * (1 - t) * t * controlLat + t * t * endCoords[1];
+        points.push([x, y]);
+    }
+
+    return {
+        type: 'Feature',
+        geometry: {
+            type: 'LineString',
+            coordinates: points
+        },
+        properties: {}
+    };
+}
+
+/**
  * Generates GeoJSON coordinates for a curved line between two points.
  * Uses a quadratic Bezier curve for a slight arc, ensuring the curve is always "upwards" (umbrella shape).
  *
