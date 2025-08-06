@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { v4 as uuidv4 } from 'uuid';
+import ReactMarkdown from 'react-markdown'; // <-- Add this import
+
 
 // Import custom components and utilities
 import ArrowPin from './ArrowPin';
@@ -377,16 +379,27 @@ export default function Map() {
       setActivePopupData(null);
     }
   }, [activePopupData]);
+  
 
-  // Handler for the radius slider
-  const handleRadiusChange = useCallback((event) => {
+// Handler for the radius slider
+const handleRadiusChange = useCallback((event) => {
     const sliderValue = Number(event.target.value);
-    const nonlinearRadius = Math.round(1000 * Math.pow(sliderValue / 100, 2)); // Corrected non-linear mapping
+    const nonlinearRadius = Math.round(1000 * Math.pow(sliderValue / 100, 2));
+
+    if (activePopupData?.radius !== nonlinearRadius) {
+        setActivePopupData(prev => ({
+            ...prev,
+            loading: false,
+            aiContent: 'Adjust radius and click "Explore" to get suggestions.',
+            error: null,
+            radius: nonlinearRadius,
+            isStale: true, // Mark content as stale when radius changes
+        }));
+    }
+    
     setSelectedRadius(nonlinearRadius);
-    setActivePopupData(prev => ({
-      ...prev, loading: false, aiContent: 'Adjust radius and click "Explore" to get suggestions.', error: null, radius: nonlinearRadius
-    }));
-  }, []);
+}, [activePopupData]);
+  
 
   // Handler for when a filter checkbox is toggled
   const handleFilterToggle = useCallback((filter) => {
@@ -737,10 +750,10 @@ export default function Map() {
             <button onClick={handleClosePopup} aria-label="Close popup" className="text-gray-600 hover:text-gray-900 font-bold text-xl leading-none">×</button>
           </div>
 
-          {/* Stale content warning */}
-          {activePopupData.isStale && (
+{/* Stale content warning */}
+          {(activePopupData.isStale && activePopupData.direction !== 'Overview') && (
             <div className="bg-yellow-100 text-yellow-800 p-2 rounded-lg text-xs mb-2">
-              Note: This information was generated with different filters.
+              Note: This information was generated with different filters or radius settings.
             </div>
           )}
 
@@ -759,15 +772,21 @@ export default function Map() {
           )}
 
           {/* AI content display area */}
-          <p className="mb-4 text-gray-800 text-sm whitespace-pre-wrap">
-            {activePopupData.loading ? <span className="text-blue-500 animate-pulse">{activePopupData.aiContent}</span> : activePopupData.error ? <span className="text-red-500">Error: {activePopupData.error}</span> : activePopupData.aiContent}
-          </p>
+          <div className="mb-4 text-gray-800 text-sm whitespace-pre-wrap">
+            {activePopupData.loading ? (
+              <span className="text-blue-500 animate-pulse">{activePopupData.aiContent}</span>
+            ) : activePopupData.error ? (
+              <span className="text-red-500">Error: {activePopupData.error}</span>
+            ) : (
+              <ReactMarkdown>{activePopupData.aiContent}</ReactMarkdown>
+            )}
+          </div>
 
           {/* Action buttons */}
           <div className="flex flex-col gap-2">
             {activePopupData.direction !== 'Overview' && (
               <button className="px-3 py-1 border border-blue-500 text-blue-600 rounded-full hover:bg-blue-700 hover:text-gray-100 transition" onClick={handleExploreDirection}>
-                {activePopupData.isStale ? `Update with current filters` : `Explore ${directionMap[activePopupData.direction] || activePopupData.direction}`}
+                {activePopupData.isStale ? `Update with current settings` : `Explore ${directionMap[activePopupData.direction] || activePopupData.direction}`}
               </button>
             )}
             {(activePopupData.direction === 'Overview' || (!activePopupData.loading && !activePopupData.error && activePopupData.aiContent !== 'Adjust radius and click "Explore" to get suggestions.')) && (
