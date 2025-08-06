@@ -281,34 +281,235 @@ export default function Map() {
   }, []);
 
   // Function to get a human-readable place name from coordinates
-  const fetchPlaceName = useCallback(async (lng, lat) => { /* ... code ... */ }, []);
+  const fetchPlaceName = useCallback(async (lng, lat) => {
+    if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
+      console.error("Invalid coordinates for geocoding:", { lng, lat });
+      return 'Invalid Location';
+    }
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}`
+      );
+      if (!response.ok) {
+        throw new Error(`Geocoding failed with status: ${response.status}`);
+      }
+      const data = await response.json();
+      const feature = data?.features?.[0];
+      if (!feature) return 'Unknown Location';
+      const context = feature.context || [];
+      const locality =
+        context.find((c) => c.id.includes('place')) ||
+        context.find((c) => c.id.includes('locality')) ||
+        context.find((c) => c.id.includes('region'));
+      return locality?.text || feature.text || 'Unknown Location';
+    } catch (error) {
+      console.error('Reverse geocoding error:', error);
+      return 'Error fetching location';
+    }
+  }, []);
 
   // Function to fetch AI suggestions from the backend
-  const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = null) => { /* ... code ... */ }, []);
+  const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = null) => {
+    if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
+      console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
+      setActivePopupData(prev => ({
+        ...prev,
+        loading: false,
+        aiContent: 'Error: Invalid pin coordinates.',
+        error: 'Invalid coordinates provided for AI suggestion.',
+      }));
+      return;
+    }
+    setActivePopupData(prev => ({
+      ...prev,
+      loading: true,
+      aiContent: 'Generating suggestions...',
+      error: null,
+      radius: direction === 'Overview' ? null : radius,
+    }));
+    try {
+      const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ placeName, direction, lng, lat, radius }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || errorData.error || 'Network response was not ok');
+      }
+      const data = await response.json();
+      setDroppedPins(prevPins => {
+        return prevPins.map(pin => {
+          if (pin.id === pinId) {
+            return {
+              ...pin,
+              aiCache: { ...pin.aiCache, [direction]: data.suggestion, }
+            };
+          }
+          return pin;
+        });
+      });
+      setActivePopupData((prev) => ({
+        ...prev,
+        loading: false,
+        aiContent: data.suggestion,
+        error: null,
+      }));
+    } catch (error) {
+      console.error('Error fetching AI suggestion:', error);
+      setActivePopupData((prev) => ({
+        ...prev,
+        loading: false,
+        aiContent: 'Could not load suggestions.',
+        error: error.message,
+      }));
+    }
+  }, []);
 
   // Handler for when a pin is clicked (for opening the main popup or connecting)
-  const handlePinClick = useCallback(async (pin) => { /* ... code ... */ }, [connectionMode, connectingMarkerId, droppedPins, fetchPlaceName, fetchAISuggestion, setDrawnLines]);
+  const handlePinClick = useCallback(
+    async (pin) => {
+      const [lng, lat] = pin.coords;
+      if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
+        console.error("Clicked pin has invalid coordinates:", { lng, lat });
+        return;
+      }
+      if (connectionMode && connectingMarkerId !== null && connectingMarkerId !== pin.id) {
+        const firstPin = droppedPins.find(p => p.id === connectingMarkerId);
+        const secondPin = pin;
+        const curveCoords = getCurvedLinePoints(firstPin.coords, secondPin.coords);
+        const newLine = {
+          id: `${firstPin.id}-${secondPin.id}`,
+          geojson: {
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: curveCoords },
+            properties: { fromId: firstPin.id, toId: secondPin.id }
+          }
+        };
+        console.log("Adding new line to state:", newLine);
+        setDrawnLines(prevLines => [...prevLines, newLine]);
+        setConnectionMode(false);
+        setConnectingMarkerId(null);
+        setConnectionSuccess(`Connection successful!`);
+        setTimeout(() => setConnectionSuccess(null), 3000);
+      } else if (connectionMode && connectingMarkerId === pin.id) {
+        console.log('You clicked the same marker. Connection cancelled.');
+        setConnectionSuccess('Connection cancelled.');
+        setConnectionMode(false);
+        setConnectingMarkerId(null);
+        setActivePopupData(null);
+        setTimeout(() => setConnectionSuccess(null), 3000);
+      } else {
+        const placeName = await fetchPlaceName(lng, lat);
+        const direction = 'Overview';
+        setSelectedRadius(5);
+        const cachedContent = pin.aiCache[direction];
+        if (cachedContent) {
+          setActivePopupData({
+            pinId: pin.id, lng, lat, direction, placeName, loading: false, aiContent: cachedContent, error: null, radius: null,
+          });
+        } else {
+          setActivePopupData({
+            pinId: pin.id, lng, lat, direction, placeName, loading: true, aiContent: 'Generating overview...', error: null, radius: null,
+          });
+          fetchAISuggestion(pin.id, placeName, direction, lng, lat, null);
+        }
+      }
+    },
+    [connectionMode, connectingMarkerId, droppedPins, fetchPlaceName, fetchAISuggestion, setDrawnLines]
+  );
 
   // Handler for when a directional arrow is clicked
-  const handleDirectionalPopupOpen = useCallback(async (directionKey, pin) => { /* ... code ... */ }, [fetchPlaceName]);
+  const handleDirectionalPopupOpen = useCallback(
+    async (directionKey, pin) => {
+      const [lng, lat] = pin.coords;
+      if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
+        console.error("Arrow clicked for pin with invalid coordinates:", { lng, lat });
+        return;
+      }
+      const placeName = await fetchPlaceName(lng, lat);
+      const direction = directionMap[directionKey] || directionKey;
+      const cachedContent = pin.aiCache[direction];
+      const initialContent = cachedContent || 'Adjust radius and click "Explore" to get suggestions.';
+      setSelectedRadius(5);
+      setActivePopupData({
+        pinId: pin.id, lng, lat, direction, placeName, loading: cachedContent ? false : false, aiContent: initialContent, error: null, radius: 5,
+      });
+    },
+    [fetchPlaceName]
+  );
 
   // Handler for the "Explore" button inside the popup
-  const handleExploreDirection = useCallback(() => { /* ... code ... */ }, [activePopupData, fetchAISuggestion, selectedRadius, droppedPins]);
+  const handleExploreDirection = useCallback(() => {
+    if (!activePopupData) return;
+    const { pinId, placeName, direction, lng, lat } = activePopupData;
+    const currentPin = droppedPins.find(p => p.id === pinId);
+    if (currentPin && currentPin.aiCache[direction]) {
+      setActivePopupData(prev => ({
+        ...prev, loading: false, aiContent: currentPin.aiCache[direction], error: null,
+      }));
+      return;
+    }
+    fetchAISuggestion(pinId, placeName, direction, lng, lat, selectedRadius);
+  }, [activePopupData, fetchAISuggestion, selectedRadius, droppedPins]);
 
   // Handler for the "Connect" button
-  const handleConnectToAnotherMarker = useCallback(() => { /* ... code ... */ }, [activePopupData]);
+  const handleConnectToAnotherMarker = useCallback(() => {
+    if (activePopupData) {
+      setConnectionMode(true);
+      setConnectingMarkerId(activePopupData.pinId);
+      setActivePopupData(null);
+    }
+  }, [activePopupData]);
 
   // Handler to close the active popup
-  const handleClosePopup = useCallback(() => { /* ... code ... */ }, []);
+  const handleClosePopup = useCallback(() => {
+    setActivePopupData(null);
+    setSelectedRadius(5);
+    if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
+      map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
+    }
+    setConnectionMode(false);
+    setConnectingMarkerId(null);
+  }, []);
 
   // Handler to remove a pin and any associated lines
-  const handleRemoveMarker = useCallback((pinIdToRemove) => { /* ... code ... */ }, [activePopupData, connectionMode, connectingMarkerId, droppedPins]);
+  const handleRemoveMarker = useCallback((pinIdToRemove) => {
+    const removedPin = droppedPins.find(p => p.id === pinIdToRemove);
+    if (!removedPin) return;
+    setDroppedPins((prevPins) => prevPins.filter((pin) => pin.id !== pinIdToRemove));
+    setDrawnLines((prevLines) =>
+      prevLines.filter(
+        (line) => line.geojson.properties.fromId !== pinIdToRemove && line.geojson.properties.toId !== pinIdToRemove
+      )
+    );
+    if (activePopupData && activePopupData.pinId === pinIdToRemove) {
+      setActivePopupData(null);
+    }
+    if (connectionMode && connectingMarkerId === pinIdToRemove) {
+      setConnectionMode(false);
+      setConnectingMarkerId(null);
+    }
+    setHoveredPinId(null);
+    setSelectedRadius(5);
+    if (map.current && map.current.getSource(ARC_SOURCE_ID)) {
+      map.current.getSource(ARC_SOURCE_ID).setData({ type: 'FeatureCollection', features: [] });
+    }
+  }, [activePopupData, connectionMode, connectingMarkerId, droppedPins]);
 
   // Handler for the radius slider
-  const handleRadiusChange = useCallback((event) => { /* ... code ... */ }, []);
+  const handleRadiusChange = useCallback((event) => {
+    const newRadius = Number(event.target.value);
+    setSelectedRadius(newRadius);
+    setActivePopupData(prev => ({
+      ...prev, loading: false, aiContent: 'Adjust radius and click "Explore" to get suggestions.', error: null, radius: newRadius
+    }));
+  }, []);
 
   // Handler to toggle the sidebar
-  const toggleSidebar = useCallback(() => { setIsSidebarOpen(prev => !prev); }, []);
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarOpen(prev => !prev);
+  }, []);
 
 
   // =======================================================================
