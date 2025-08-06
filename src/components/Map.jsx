@@ -58,10 +58,10 @@ export default function Map() {
       center: [lng, lat],
       zoom: zoom,
       interactive: true,
-      dragRotate: false, // Prevents 3D rotation
-      pitchWithRotate: false, // Prevents pitch on rotation
-      touchZoomRotate: false, // Prevents touch rotation on mobile
-      touchPitch: false, // Prevents touch pitch
+      dragRotate: false,
+      pitchWithRotate: false,
+      // Removed touchZoomRotate: false to enable mobile zoom
+      touchPitch: false,
     });
 
     map.current.on('move', () => {
@@ -79,7 +79,9 @@ export default function Map() {
 
     map.current.on('load', () => {
       mapLoaded.current = true;
-      // Existing Arc Source and Layer additions
+      // Manually disable touch rotation to keep the 2D lock
+      map.current.touchRotate.disable();
+
       if (!map.current.getSource(ARC_SOURCE_ID)) {
         map.current.addSource(ARC_SOURCE_ID, {
           type: 'geojson',
@@ -99,7 +101,7 @@ export default function Map() {
           paint: {
             'fill-color': '#00BFFF',
             'fill-opacity': 0.25,
-            'fill-outline-color': '#1d4ed8' // Updated to match new brand blue
+            'fill-outline-color': '#1d4ed8'
           }
         });
 
@@ -109,14 +111,13 @@ export default function Map() {
           source: ARC_SOURCE_ID,
           layout: {},
           paint: {
-            'line-color': '#1d4ed8', // Updated to match new brand blue
+            'line-color': '#1d4ed8',
             'line-width': 2,
             'line-opacity': 0.75
           }
         });
       }
 
-      // Curved Line Source and Layer
       if (!map.current.getSource(CURVED_LINE_SOURCE_ID)) {
         map.current.addSource(CURVED_LINE_SOURCE_ID, {
           type: 'geojson',
@@ -138,8 +139,8 @@ export default function Map() {
               'line-cap': 'round'
             },
             paint: {
-              'line-color': '#1d4ed8', // Updated to match brand blue
-              'line-width': 2,        // Thinner line
+              'line-color': '#1d4ed8',
+              'line-width': 2,
               'line-opacity': 1,
             }
           }
@@ -161,7 +162,6 @@ export default function Map() {
     };
   }, []);
 
-  // Effect to update curved lines on the map based on `drawnLines` state
   useEffect(() => {
     console.log("useEffect [drawnLines] triggered. drawnLines count:", drawnLines.length);
 
@@ -406,7 +406,6 @@ export default function Map() {
 
         setSelectedRadius(5);
 
-        // Check if content is cached
         const cachedContent = pin.aiCache[direction];
         if (cachedContent) {
           setActivePopupData({
@@ -472,7 +471,6 @@ export default function Map() {
     if (!activePopupData) return;
     const { pinId, placeName, direction, lng, lat } = activePopupData;
 
-    // Check if content for the current direction is already cached
     const currentPin = droppedPins.find(p => p.id === pinId);
     if (currentPin && currentPin.aiCache[direction]) {
       setActivePopupData(prev => ({
