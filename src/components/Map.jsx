@@ -154,63 +154,94 @@ export default function Map() {
     }
   }, []);
 
-  const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = null, filters = []) => {
-    if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
-      console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
-      setActivePopupData(prev => ({
-        ...prev,
-        loading: false,
-        aiContent: 'Error: Invalid pin coordinates.',
-        error: 'Invalid coordinates provided for AI suggestion.',
-      }));
-      return;
+
+  
+
+const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius, filters) => {
+    setActivePopupData(prev => ({ ...prev, loading: true, aiContent: 'Generating suggestions...', error: null, isStale: false }));
+    
+    // Clear any existing AI-generated pins from the map before fetching new ones
+    if (aiPins.length > 0) {
+        aiPins.forEach(pin => pin.remove());
+        setAiPins([]); // Clear the state
     }
-    setActivePopupData(prev => ({
-      ...prev,
-      loading: true,
-      aiContent: 'Generating suggestions...',
-      error: null,
-      radius: direction === 'Overview' ? null : radius,
-    }));
+
     try {
-      const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ placeName, direction, lng, lat, radius, filters }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || errorData.error || 'Network response was not ok');
-      }
-      const data = await response.json();
-      setDroppedPins(prevPins => {
-        return prevPins.map(pin => {
-          if (pin.id === pinId) {
-            const cacheKey = direction + '-' + filters.sort().join(',');
-            return {
-              ...pin,
-              aiCache: { ...pin.aiCache, [cacheKey]: data.suggestion, }
-            };
-          }
-          return pin;
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/generate-suggestion`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ placeName, direction, lng, lat, radius, filters }),
         });
-      });
-      setActivePopupData((prev) => ({
-        ...prev,
-        loading: false,
-        aiContent: data.suggestion,
-        error: null,
-      }));
+
+        const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        // --- NEW LOGIC FOR PARSING AND DROPPING PINS ---
+        let aiGeneratedContent = '';
+        let newAiPins = [];
+
+        try {
+            const parsedData = JSON.parse(data.suggestion);
+            
+            // Reconstruct the user-facing text from the JSON
+            if (parsedData.intro) {
+              aiGeneratedContent += `**${parsedData.intro}**\n\n`;
+            }
+
+            if (parsedData.locations && Array.isArray(parsedData.locations)) {
+              parsedData.locations.forEach((location, index) => {
+                aiGeneratedContent += `${index + 1}. **${location.name}**: ${location.description}\n\n`;
+                
+                // Create a new pin for the AI-suggested location
+                const el = document.createElement('div');
+                el.className = 'ai-pin'; // Use a custom CSS class for styling
+                
+                // Use Mapbox Marker API to create a new pin at the specified coordinates
+                const pin = new mapboxgl.Marker({ element: el })
+                    .setLngLat(location.coordinates)
+                    .addTo(map.current);
+                
+                newAiPins.push(pin);
+              });
+            } else {
+              aiGeneratedContent = 'No suggestions found or invalid data format.';
+            }
+
+            setAiPins(newAiPins); // Save the new pins to state
+        } catch (parseError) {
+            console.error('Failed to parse AI response as JSON:', parseError);
+            // This is our fallback. If the AI doesn't return valid JSON,
+            // we treat the entire response as a simple text string.
+            aiGeneratedContent = data.suggestion;
+        }
+        // --- END OF NEW LOGIC ---
+
+        const cacheKey = direction + '-' + radius + '-' + filters.sort().join(',');
+        
+        // Update the state with the new content
+        setDroppedPins(prevPins =>
+            prevPins.map(p => p.id === pinId ? { ...p, aiCache: { ...p.aiCache, [cacheKey]: aiGeneratedContent } } : p)
+        );
+
+        setActivePopupData(prev => ({
+            ...prev,
+            loading: false,
+            aiContent: aiGeneratedContent,
+            error: null,
+            radius: radius,
+            filters: filters,
+        }));
+
     } catch (error) {
-      console.error('Error fetching AI suggestion:', error);
-      setActivePopupData((prev) => ({
-        ...prev,
-        loading: false,
-        aiContent: 'Could not load suggestions.',
-        error: error.message,
-      }));
+        console.error('Failed to generate suggestion:', error);
+        setActivePopupData(prev => ({ ...prev, loading: false, aiContent: 'Failed to generate suggestion. Please try again.', error: error.message }));
     }
-  }, []);
+}, [map, aiPins]);
+
+  
 
   // Handler for when a pin is clicked (for opening the main popup or connecting)
   const handlePinClick = useCallback(
