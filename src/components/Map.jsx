@@ -75,6 +75,8 @@ export default function Map() {
   const [activeFilters, setActiveFilters] = useState([]);
   const [pendingFilters, setPendingFilters] = useState([]);
 
+  const [aiPins, setAiPins] = useState([]); 
+
   // =======================================================================
   // CALLBACK FUNCTIONS (useCallback)
   // =======================================================================
