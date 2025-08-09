@@ -1,3 +1,5 @@
+// mapUtils.js
+
 // Helper functions for geographical calculations
 // (Simplified for demonstration; for production, consider a robust geo-library like Turf.js)
 
@@ -71,25 +73,26 @@ export function getCirclePoints(center, radiusKm, numSegments = 64) {
  *
  * @param {[number, number]} center [longitude, latitude]
  * @param {number} radiusKm Radius of the arc in kilometers
- * @param {string} direction 'North', 'South', 'East', 'West'
+ * @param {string} direction 'N', 'S', 'E', 'W'
  * @param {number} [sweepAngle=90] The total angle covered by the arc (e.g., 90 for a quarter circle)
  * @param {number} [numSegments=20] Number of segments for the arc itself (higher = smoother)
  * @returns {Array<[number, number]>} Array of [longitude, latitude] points forming the arc polygon
  */
 export function getArcPoints(center, radiusKm, direction, sweepAngle = 90, numSegments = 20) {
     let startBearing;
+    // CORRECTED: Use single letter direction codes
     switch (direction) {
-        case 'North':
-            startBearing = 360 - (sweepAngle / 2); // e.g., for 90 deg sweep, starts at 315, ends at 45
+        case 'N':
+            startBearing = 360 - (sweepAngle / 2);
             break;
-        case 'East':
-            startBearing = 90 - (sweepAngle / 2); // e.g., for 90 deg sweep, starts at 45, ends at 135
+        case 'E':
+            startBearing = 90 - (sweepAngle / 2);
             break;
-        case 'South':
-            startBearing = 180 - (sweepAngle / 2); // e.g., for 90 deg sweep, starts at 135, ends at 225
+        case 'S':
+            startBearing = 180 - (sweepAngle / 2);
             break;
-        case 'West':
-            startBearing = 270 - (sweepAngle / 2); // e.g., for 90 deg sweep, starts at 225, ends at 315
+        case 'W':
+            startBearing = 270 - (sweepAngle / 2);
             break;
         default:
             console.warn(`Invalid direction for arc: ${direction}`);
@@ -218,4 +221,25 @@ export function getCurvedLinePoints(startCoords, endCoords, numPoints = 50, offs
     }
 
     return points;
+}
+
+/**
+ * Checks if a point is inside a polygon using the Ray-Casting algorithm.
+ * This is the same function from my previous response, now moved here.
+ * @param {[number, number]} point [longitude, latitude]
+ * @param {Array<[number, number]>} polygon Array of [longitude, latitude] points
+ * @returns {boolean} True if the point is inside the polygon, false otherwise
+ */
+export function isPointInPolygon(point, polygon) {
+    let x = point[0], y = point[1];
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        let xi = polygon[i][0], yi = polygon[i][1];
+        let xj = polygon[j][0], yj = polygon[j][1];
+
+        let intersect = ((yi > y) !== (yj > y))
+            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
 }
