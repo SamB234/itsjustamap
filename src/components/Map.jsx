@@ -154,63 +154,106 @@ export default function Map() {
     }
   }, []);
 
-  const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = null, filters = []) => {
-    if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
-      console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
-      setActivePopupData(prev => ({
-        ...prev,
-        loading: false,
-        aiContent: 'Error: Invalid pin coordinates.',
-        error: 'Invalid coordinates provided for AI suggestion.',
-      }));
-      return;
+
+// Map.jsx
+
+const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius, filters) => {
+    setActivePopupData(prev => ({ ...prev, loading: true, aiContent: 'Generating suggestions...', error: null, isStale: false }));
+
+    // Clear any existing AI-generated pins from the map before fetching new ones
+    if (aiPins.length > 0) {
+        aiPins.forEach(pin => pin.remove());
+        setAiPins([]); // Clear the state
     }
-    setActivePopupData(prev => ({
-      ...prev,
-      loading: true,
-      aiContent: 'Generating suggestions...',
-      error: null,
-      radius: direction === 'Overview' ? null : radius,
-    }));
+
     try {
-      const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ placeName, direction, lng, lat, radius, filters }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || errorData.error || 'Network response was not ok');
-      }
-      const data = await response.json();
-      setDroppedPins(prevPins => {
-        return prevPins.map(pin => {
-          if (pin.id === pinId) {
-            const cacheKey = direction + '-' + filters.sort().join(',');
-            return {
-              ...pin,
-              aiCache: { ...pin.aiCache, [cacheKey]: data.suggestion, }
-            };
-          }
-          return pin;
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/generate-suggestion`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ placeName, direction, lng, lat, radius, filters }),
         });
-      });
-      setActivePopupData((prev) => ({
-        ...prev,
-        loading: false,
-        aiContent: data.suggestion,
-        error: null,
-      }));
+
+        // This is a crucial line. We're getting a JSON object with a 'suggestion' key.
+        const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        // The 'suggestion' from the old backend is a plain text string.
+        const aiGeneratedContent = data.suggestion;
+        let newAiPins = [];
+
+        // --- NEW LOGIC FOR PARSING TEXT AND DROPPING PINS ---
+        
+        // This regular expression looks for a line starting with a number and a period,
+        // followed by a space, and then captures any text between two markdown bold
+        // asterisks (**...**). The `gm` flags are for global and multiline matching.
+        const locationRegex = /\d+\.\s+\*\*([^\*]+)\*\*/gm;
+        let match;
+        let locationsText = [];
+        
+        // Loop through all matches in the AI's response text.
+        while ((match = locationRegex.exec(aiGeneratedContent)) !== null) {
+            const place = match[1].trim();
+            locationsText.push(place);
+        }
+
+        if (locationsText.length > 0) {
+            // We now have a list of place names. We need to find their coordinates.
+            for (const place of locationsText) {
+                // Use Mapbox Geocoding API to get coordinates for each place.
+                // Replace VITE_MAPBOX_API_KEY with your environment variable name.
+                const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place)}.json?access_token=${import.meta.env.VITE_MAPBOX_API_KEY}`);
+                const geocodingData = await geocodingResponse.json();
+
+                if (geocodingData.features && geocodingData.features.length > 0) {
+                    const coordinates = geocodingData.features[0].center; // [longitude, latitude]
+
+                    const el = document.createElement('div');
+                    el.className = 'ai-pin';
+                    
+                    const pin = new mapboxgl.Marker({ element: el })
+                        .setLngLat(coordinates)
+                        .addTo(map.current);
+                    
+                    newAiPins.push(pin);
+                } else {
+                    console.warn(`Could not find coordinates for: ${place}`);
+                }
+            }
+        } else {
+            // This is a simple fallback if the regex finds no locations.
+            console.log("No locations found in the AI response to place pins.");
+        }
+        
+        setAiPins(newAiPins); // Save the new pins to state
+
+        // --- END OF NEW LOGIC ---
+
+        const cacheKey = direction + '-' + radius + '-' + filters.sort().join(',');
+        
+        // Update the state with the new content
+        setDroppedPins(prevPins =>
+            prevPins.map(p => p.id === pinId ? { ...p, aiCache: { ...p.aiCache, [cacheKey]: aiGeneratedContent } } : p)
+        );
+
+        setActivePopupData(prev => ({
+            ...prev,
+            loading: false,
+            aiContent: aiGeneratedContent,
+            error: null,
+            radius: radius,
+            filters: filters,
+        }));
+
     } catch (error) {
-      console.error('Error fetching AI suggestion:', error);
-      setActivePopupData((prev) => ({
-        ...prev,
-        loading: false,
-        aiContent: 'Could not load suggestions.',
-        error: error.message,
-      }));
+        console.error('Failed to generate suggestion:', error);
+        setActivePopupData(prev => ({ ...prev, loading: false, aiContent: 'Failed to generate suggestion. Please try again.', error: error.message }));
     }
-  }, []);
+}, [map, aiPins]);
+
+  
 
   // Handler for when a pin is clicked (for opening the main popup or connecting)
   const handlePinClick = useCallback(
