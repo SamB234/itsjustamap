@@ -155,7 +155,8 @@ export default function Map() {
   }, []);
 
 
-// Map.jsx
+
+  // Map.jsx
 
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius, filters) => {
     setActivePopupData(prev => ({ ...prev, loading: true, aiContent: 'Generating suggestions...', error: null, isStale: false }));
@@ -173,8 +174,22 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             body: JSON.stringify({ placeName, direction, lng, lat, radius, filters }),
         });
 
-        // This is a crucial line. We're getting a JSON object with a 'suggestion' key.
-        const data = await response.json();
+        // --- NEW CODE: Check if the response is empty before trying to parse it. ---
+        const text = await response.text(); // First, get the response body as plain text.
+        let data;
+
+        // Check if the text is empty or a non-JSON error.
+        if (!text) {
+            console.error('Server returned an empty response.');
+            throw new Error('Server returned an empty response. This may indicate a backend issue.');
+        }
+
+        try {
+            data = JSON.parse(text); // Manually parse the text as JSON.
+        } catch (parseError) {
+            console.error('Failed to parse JSON:', text);
+            throw new Error('Received non-JSON response from server.');
+        }
 
         if (data.error) {
             throw new Error(data.error);
@@ -183,8 +198,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         // The 'suggestion' from the old backend is a plain text string.
         const aiGeneratedContent = data.suggestion;
         let newAiPins = [];
-
-        // --- NEW LOGIC FOR PARSING TEXT AND DROPPING PINS ---
         
         // This regular expression looks for a line starting with a number and a period,
         // followed by a space, and then captures any text between two markdown bold
@@ -203,7 +216,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             // We now have a list of place names. We need to find their coordinates.
             for (const place of locationsText) {
                 // Use Mapbox Geocoding API to get coordinates for each place.
-                // Replace VITE_MAPBOX_API_KEY with your environment variable name.
                 const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place)}.json?access_token=${import.meta.env.VITE_MAPBOX_API_KEY}`);
                 const geocodingData = await geocodingResponse.json();
 
@@ -223,13 +235,10 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                 }
             }
         } else {
-            // This is a simple fallback if the regex finds no locations.
             console.log("No locations found in the AI response to place pins.");
         }
         
         setAiPins(newAiPins); // Save the new pins to state
-
-        // --- END OF NEW LOGIC ---
 
         const cacheKey = direction + '-' + radius + '-' + filters.sort().join(',');
         
