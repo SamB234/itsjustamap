@@ -157,7 +157,21 @@ export default function Map() {
 
 
 
+// Add this new helper function at the top of your Map.jsx file,
+// ideally with your other utility functions.
+const isPointInPolygon = (point, polygon) => {
+    let x = point[0], y = point[1];
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        let xi = polygon[i][0], yi = polygon[i][1];
+        let xj = polygon[j][0], yj = polygon[j][1];
 
+        let intersect = ((yi > y) !== (yj > y))
+            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+};
 
 
 const filterEmojis = {
@@ -169,8 +183,6 @@ const filterEmojis = {
   'food': '🍔',
   'nightlife': '🌃'
 };
-
-// ... (rest of the code)
 
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = null) => {
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
@@ -198,7 +210,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
     }
 
     try {
-        // Use the activeFilters state directly for the API call
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -226,46 +237,65 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         const locationRegex = /\*\*(.*?)\*\*/g;
         let match;
         const locationsText = [];
+        const locationDescriptions = {};
 
-        while ((match = locationRegex.exec(aiGeneratedContent)) !== null) {
-            const place = match[1].trim();
-            locationsText.push(place);
-        }
+        // Updated parsing to handle multiple lines and descriptions
+        const lines = aiGeneratedContent.split('\n');
+        lines.forEach(line => {
+            const parts = line.split(':');
+            if (parts.length > 1) {
+                const nameMatch = parts[0].match(/\*\*(.*?)\*\*/);
+                if (nameMatch) {
+                    const place = nameMatch[1].trim();
+                    const description = parts.slice(1).join(':').trim();
+                    locationsText.push(place);
+                    locationDescriptions[place] = description;
+                }
+            }
+        });
+
+        const newAiPins = [];
+        const validLocations = [];
 
         if (locationsText.length > 0) {
-            // Get the first active filter to determine the emoji
             const selectedFilter = activeFilters.length > 0 ? activeFilters[0] : null;
-            // Use the filter directly as the key to get the correct emoji
             const emoji = selectedFilter && filterEmojis[selectedFilter] ? filterEmojis[selectedFilter] : '📍';
             
-            console.log(`Applying emoji for filter: ${selectedFilter}`, emoji);
+            // Get the arc polygon points from the mapUtils.js function
+            const arcPolygon = getArcPoints(lng, lat, direction, radius);
 
-            const newAiPins = [];
             for (const place of locationsText) {
                 const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place)}.json?access_token=${mapboxgl.accessToken}`);
                 const geocodingData = await geocodingResponse.json();
 
                 if (geocodingData.features && geocodingData.features.length > 0) {
                     const coordinates = geocodingData.features[0].center;
-                    const el = document.createElement('div');
-                    el.className = 'ai-pin';
-                    el.innerHTML = emoji;
-                    
-                    Object.assign(el.style, {
-                        fontSize: '20px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                        border: '2px solid #000',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '30px',
-                        height: '30px',
-                        borderRadius: '50%',
-                        cursor: 'pointer'
-                    });
 
-                    const pin = new mapboxgl.Marker({ element: el }).setLngLat(coordinates).addTo(map.current);
-                    newAiPins.push(pin);
+                    // Check if the location is within the generated arc polygon
+                    if (isPointInPolygon(coordinates, arcPolygon)) {
+                        const el = document.createElement('div');
+                        el.className = 'ai-pin';
+                        el.innerHTML = emoji;
+                        
+                        Object.assign(el.style, {
+                            fontSize: '20px',
+                            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                            border: '2px solid #000',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '30px',
+                            height: '30px',
+                            borderRadius: '50%',
+                            cursor: 'pointer'
+                        });
+
+                        const pin = new mapboxgl.Marker({ element: el }).setLngLat(coordinates).addTo(map.current);
+                        newAiPins.push(pin);
+                        validLocations.push({ name: place, description: locationDescriptions[place] });
+                    } else {
+                        console.log(`Location '${place}' is outside the search area and will not be displayed.`);
+                    }
                 } else {
                     console.warn(`Could not find coordinates for: ${place}`);
                 }
@@ -289,9 +319,12 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         setActivePopupData((prev) => ({
             ...prev,
             loading: false,
-            aiContent: aiGeneratedContent,
+            aiContent: validLocations.length > 0 
+                ? 'Based on your selection, here are a few suggestions for the area of "' + placeName + '" when traveling towards the ' + directionMap[direction] + ' within approximately ' + radius + ' km.\n' + validLocations.map(loc => `**${loc.name}**: ${loc.description}`).join('\n')
+                : 'No suggestions found within the search area.',
             error: null,
         }));
+
     } catch (error) {
         console.error('Error fetching AI suggestion:', error);
         setActivePopupData((prev) => ({
@@ -301,7 +334,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             error: error.message,
         }));
     }
-}, [map, aiPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis]); // Added filterEmojis to dependency array
+}, [map, aiPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis]);
  
 
   
