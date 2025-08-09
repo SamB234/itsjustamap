@@ -157,115 +157,123 @@ export default function Map() {
 
 
 
-  // Map.jsx
-
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = null, filters = []) => {
-  if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
-    console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
+    if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
+        console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
+        setActivePopupData(prev => ({
+            ...prev,
+            loading: false,
+            aiContent: 'Error: Invalid pin coordinates.',
+            error: 'Invalid coordinates provided for AI suggestion.',
+        }));
+        return;
+    }
+
+    // Set the loading state before the fetch call
     setActivePopupData(prev => ({
-      ...prev,
-      loading: false,
-      aiContent: 'Error: Invalid pin coordinates.',
-      error: 'Invalid coordinates provided for AI suggestion.',
+        ...prev,
+        loading: true,
+        aiContent: 'Generating suggestions...',
+        error: null,
+        radius: direction === 'Overview' ? null : radius,
     }));
-    return;
-  }
 
-  // Set the loading state before the fetch call
-  setActivePopupData(prev => ({
-    ...prev,
-    loading: true,
-    aiContent: 'Generating suggestions...',
-    error: null,
-    radius: direction === 'Overview' ? null : radius,
-  }));
-
-  // Clear any existing AI-generated pins from the map before fetching new ones
-  if (aiPins.length > 0) {
-    aiPins.forEach(pin => pin.remove());
-    setAiPins([]); // Clear the state
-  }
-
-  try {
-    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/generate-suggestion`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ placeName, direction, lng, lat, radius, filters }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.details || errorData.error || 'Network response was not ok');
+    // Clear any existing AI-generated pins from the map before fetching new ones
+    if (aiPins.length > 0) {
+        aiPins.forEach(pin => pin.remove());
+        setAiPins([]); // Clear the state
     }
 
-    const data = await response.json();
-    const aiGeneratedContent = data.suggestion; // Get the suggestion text
+    try {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/generate-suggestion`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ placeName, direction, lng, lat, radius, filters }),
+        });
 
-    let newAiPins = [];
+        const responseText = await response.text();
+        if (!responseText) {
+            throw new Error('Server returned an empty response.');
+        }
 
-    // --- NEW LOGIC FOR PARSING TEXT AND DROPPING PINS ---
-    // This part should be safe to run inside the successful try block.
-    const locationRegex = /\d+\.\s+\*\*([^\*]+)\*\*/gm;
-    let match;
-    let locationsText = [];
-    
-    while ((match = locationRegex.exec(aiGeneratedContent)) !== null) {
-      const place = match[1].trim();
-      locationsText.push(place);
-    }
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            console.error('Failed to parse JSON:', responseText);
+            throw new Error('Received a non-JSON response from the server.');
+        }
 
-    if (locationsText.length > 0) {
-      for (const place of locationsText) {
-        const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place)}.json?access_token=${import.meta.env.VITE_MAPBOX_API_KEY}`);
-        const geocodingData = await geocodingResponse.json();
+        if (!response.ok) {
+            throw new Error(data.details || data.error || 'Network response was not ok');
+        }
 
-        if (geocodingData.features && geocodingData.features.length > 0) {
-          const coordinates = geocodingData.features[0].center; // [longitude, latitude]
-          const el = document.createElement('div');
-          el.className = 'ai-pin';
-          const pin = new mapboxgl.Marker({ element: el }).setLngLat(coordinates).addTo(map.current);
-          newAiPins.push(pin);
+        const aiGeneratedContent = data.suggestion; // This is the plain text from the backend.
+
+        let newAiPins = [];
+
+        // --- NEW LOGIC FOR PARSING TEXT AND DROPPING PINS ---
+        const locationRegex = /\d+\.\s+\*\*([^\*]+)\*\*/gm;
+        let match;
+        let locationsText = [];
+        
+        while ((match = locationRegex.exec(aiGeneratedContent)) !== null) {
+            const place = match[1].trim();
+            locationsText.push(place);
+        }
+
+        if (locationsText.length > 0) {
+            for (const place of locationsText) {
+                const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place)}.json?access_token=${import.meta.env.VITE_MAPBOX_API_KEY}`);
+                const geocodingData = await geocodingResponse.json();
+
+                if (geocodingData.features && geocodingData.features.length > 0) {
+                    const coordinates = geocodingData.features[0].center;
+                    const el = document.createElement('div');
+                    el.className = 'ai-pin';
+                    const pin = new mapboxgl.Marker({ element: el }).setLngLat(coordinates).addTo(map.current);
+                    newAiPins.push(pin);
+                } else {
+                    console.warn(`Could not find coordinates for: ${place}`);
+                }
+            }
         } else {
-          console.warn(`Could not find coordinates for: ${place}`);
+            console.log("No locations found in the AI response to place pins.");
         }
-      }
-    } else {
-      console.log("No locations found in the AI response to place pins.");
+        
+        setAiPins(newAiPins);
+        // --- END OF NEW LOGIC ---
+
+        const cacheKey = direction + '-' + filters.sort().join(',');
+        
+        setDroppedPins(prevPins => {
+            return prevPins.map(pin => {
+                if (pin.id === pinId) {
+                    return {
+                        ...pin,
+                        aiCache: { ...pin.aiCache, [cacheKey]: aiGeneratedContent, }
+                    };
+                }
+                return pin;
+            });
+        });
+
+        setActivePopupData((prev) => ({
+            ...prev,
+            loading: false,
+            aiContent: aiGeneratedContent,
+            error: null,
+        }));
+    } catch (error) {
+        console.error('Error fetching AI suggestion:', error);
+        setActivePopupData((prev) => ({
+            ...prev,
+            loading: false,
+            aiContent: 'Could not load suggestions.',
+            error: error.message,
+        }));
     }
-    
-    setAiPins(newAiPins); // Save the new pins to state
-    // --- END OF NEW LOGIC ---
-
-    // The rest of your old, working code to update state
-    setDroppedPins(prevPins => {
-      return prevPins.map(pin => {
-        if (pin.id === pinId) {
-          const cacheKey = direction + '-' + filters.sort().join(',');
-          return {
-            ...pin,
-            aiCache: { ...pin.aiCache, [cacheKey]: aiGeneratedContent, }
-          };
-        }
-        return pin;
-      });
-    });
-
-    setActivePopupData((prev) => ({
-      ...prev,
-      loading: false,
-      aiContent: aiGeneratedContent,
-      error: null,
-    }));
-  } catch (error) {
-    console.error('Error fetching AI suggestion:', error);
-    setActivePopupData((prev) => ({
-      ...prev,
-      loading: false,
-      aiContent: 'Could not load suggestions.',
-      error: error.message,
-    }));
-  }
-}, [map, aiPins]); // Don't forget to include aiPins in the dependency array
+}, [map, aiPins, setDroppedPins, setActivePopupData]);
 
   
   
