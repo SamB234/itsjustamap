@@ -174,152 +174,197 @@ const filterEmojis = {
   
 
  
-const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
-    // Standard validation and loading state setup
-    if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
-        console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
-        setActivePopupData(prev => ({
-            ...prev,
-            loading: false,
-            aiContent: 'Error: Invalid pin coordinates.',
-            error: 'Invalid coordinates provided for AI suggestion.',
-        }));
-        return;
-    }
-
-    setActivePopupData(prev => ({
-        ...prev,
-        loading: true,
-        aiContent: 'Generating suggestions...',
-        error: null,
-        radius: direction === 'Overview' ? null : radius,
-    }));
-
-    try {
-        const locationsToFind = 2; // Target number of locations
-        let validLocations = [];
-        let retries = 0;
-        const maxRetries = 3;
-
-        // Loop to retry API calls until we get the desired number of locations
-        while (validLocations.length < locationsToFind && retries < maxRetries) {
-            console.log(`Attempt ${retries + 1} to fetch AI suggestions...`);
-
-            // We pass the retryCount to the backend to get fresh suggestions
+// New: Function to fetch a general location overview for user-placed pins
+    const fetchGeneralOverview = useCallback(async (placeName) => {
+        try {
             const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ placeName, direction, lng, lat, radius, filters: activeFilters, retryCount: retries }),
+                body: JSON.stringify({ placeName, direction: 'Overview' }),
             });
-
-            const responseText = await response.text();
-            if (!responseText) {
-                throw new Error('Server returned an empty response.');
-            }
-
-            let data;
-            try {
-                data = JSON.parse(responseText);
-            } catch (e) {
-                console.error('Failed to parse JSON:', responseText);
-                throw new Error('Received a non-JSON response from the server.');
-            }
-
-            if (!response.ok) {
-                throw new Error(data.details || data.error || 'Network response was not ok');
-            }
-
-            const aiGeneratedContent = data.suggestion;
-            const locationsText = [];
-            const locationDescriptions = {};
-
-            // Parse the AI response to extract location names and descriptions
-            const lines = aiGeneratedContent.split('\n');
-            lines.forEach(line => {
-                const parts = line.split(':');
-                if (parts.length > 1) {
-                    const nameMatch = parts[0].match(/\*\*(.*?)\*\*/);
-                    if (nameMatch) {
-                        const place = nameMatch[1].trim();
-                        const description = parts.slice(1).join(':').trim();
-                        locationsText.push(place);
-                        locationDescriptions[place] = description;
-                    }
-                }
-            });
-
-            // Geocode each suggested location and check if it's within the arc
-            const tempValidLocations = [];
-            for (const place of locationsText) {
-                const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place)}.json?access_token=${mapboxgl.accessToken}`);
-                const geocodingData = await geocodingResponse.json();
-
-                if (geocodingData.features && geocodingData.features.length > 0) {
-                    const coordinates = geocodingData.features[0].center;
-                    
-                    // Use the simpler `isPointInArc` function for filtering
-                    if (isPointInArc(coordinates, [lng, lat], radius, direction)) {
-                        tempValidLocations.push({ name: place, description: locationDescriptions[place], coords: coordinates });
-                    } else {
-                        console.log(`Location '${place}' is outside the search area and will not be displayed.`);
-                    }
-                } else {
-                    console.warn(`Could not find coordinates for: ${place}`);
-                }
-            }
-            validLocations = tempValidLocations;
-            retries++;
+            const data = await response.json();
+            return data.suggestion || 'No overview available.';
+        } catch (error) {
+            console.error('Error fetching general overview:', error);
+            return 'Failed to load overview.';
         }
+    }, []);
 
-        // Add the new valid locations to the main droppedPins state
-        if (validLocations.length > 0) {
-            setDroppedPins(prevPins => {
-                const newPins = validLocations.map(loc => ({
-                    id: uuidv4(), // Generate a unique ID for the new pin
-                    coords: loc.coords,
-                    description: loc.description,
-                    name: loc.name,
-                    isAIGenerated: true, // Tag this as an AI pin
-                }));
-                return [...prevPins, ...newPins];
+    // New: Function to get a filter-specific overview for AI-generated pins
+    const fetchAIOverview = useCallback(async (placeName, filter) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ placeName, direction: 'Overview', filters: [filter] }),
             });
-        } else {
-            console.log(`No suggestions found after ${maxRetries} attempts.`);
+            const data = await response.json();
+            return data.suggestion || 'No overview available for this filter.';
+        } catch (error) {
+            console.error('Error fetching AI overview:', error);
+            return 'Failed to load overview.';
         }
+    }, []);
 
-        // Display AI content in the popup
-        const aiContentToDisplay = validLocations.length > 0
-            ? 'Based on your selection, here are a few suggestions for the area of "' + placeName + '" when traveling towards the ' + directionMap[direction] + ' within approximately ' + radius + ' km.\n' + validLocations.map(loc => `**${loc.name}**: ${loc.description}`).join('\n')
-            : 'No suggestions found within the search area.';
-
-        // Cache the result
-        const cacheKey = direction + '-' + activeFilters.sort().join(',');
+    const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
+        // Standard validation and loading state setup
+        if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
+            console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
+            setActivePopupData(prev => ({
+                ...prev,
+                loading: false,
+                aiContent: 'Error: Invalid pin coordinates.',
+                error: 'Invalid coordinates provided for AI suggestion.',
+            }));
+            return;
+        }
         
-        setDroppedPins(prevPins =>
-            prevPins.map(pin =>
-                pin.id === pinId
-                    ? { ...pin, aiCache: { ...pin.aiCache, [cacheKey]: aiContentToDisplay } }
-                    : pin
-            )
-        );
+        const cacheKey = direction + '-' + activeFilters.sort().join(',');
+        const currentPin = droppedPins.find(p => p.id === pinId);
+        if (currentPin && currentPin.aiCache && currentPin.aiCache[cacheKey]) {
+            setActivePopupData(prev => ({
+                ...prev,
+                loading: false,
+                aiContent: currentPin.aiCache[cacheKey],
+                error: null,
+                radius: direction === 'Overview' ? null : radius,
+            }));
+            return;
+        }
 
-        setActivePopupData((prev) => ({
+        setActivePopupData(prev => ({
             ...prev,
-            loading: false,
-            aiContent: aiContentToDisplay,
+            loading: true,
+            aiContent: 'Generating suggestions...',
             error: null,
+            radius: direction === 'Overview' ? null : radius,
         }));
 
-    } catch (error) {
-        console.error('Error fetching AI suggestion:', error);
-        setActivePopupData((prev) => ({
-            ...prev,
-            loading: false,
-            aiContent: 'Could not load suggestions.',
-            error: error.message,
-        }));
-    }
-}, [map, setDroppedPins, setActivePopupData, activeFilters, filterEmojis]);
+        try {
+            const locationsToFind = 2; // Target number of locations
+            let validLocations = [];
+            let retries = 0;
+            const maxRetries = 3;
+
+            // Loop to retry API calls until we get the desired number of locations
+            while (validLocations.length < locationsToFind && retries < maxRetries) {
+                console.log(`Attempt ${retries + 1} to fetch AI suggestions...`);
+
+                // We pass the retryCount to the backend to get fresh suggestions
+                const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ placeName, direction, lng, lat, radius, filters: activeFilters, retryCount: retries }),
+                });
+
+                const responseText = await response.text();
+                if (!responseText) {
+                    throw new Error('Server returned an empty response.');
+                }
+
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    console.error('Failed to parse JSON:', responseText);
+                    throw new Error('Received a non-JSON response from the server.');
+                }
+
+                if (!response.ok) {
+                    throw new Error(data.details || data.error || 'Network response was not ok');
+                }
+
+                const aiGeneratedContent = data.suggestion;
+                const locationsText = [];
+                const locationDescriptions = {};
+
+                // Parse the AI response to extract location names and descriptions
+                const lines = aiGeneratedContent.split('\n');
+                lines.forEach(line => {
+                    const parts = line.split(':');
+                    if (parts.length > 1) {
+                        const nameMatch = parts[0].match(/\*\*(.*?)\*\*/);
+                        if (nameMatch) {
+                            const place = nameMatch[1].trim();
+                            const description = parts.slice(1).join(':').trim();
+                            locationsText.push(place);
+                            locationDescriptions[place] = description;
+                        }
+                    }
+                });
+
+                // Geocode each suggested location and check if it's within the arc
+                const tempValidLocations = [];
+                for (const place of locationsText) {
+                    const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place)}.json?access_token=${mapboxgl.accessToken}`);
+                    const geocodingData = await geocodingResponse.json();
+
+                    if (geocodingData.features && geocodingData.features.length > 0) {
+                        const coordinates = geocodingData.features[0].center;
+                        
+                        // Use the simpler `isPointInArc` function for filtering
+                        if (isPointInArc(coordinates, [lng, lat], radius, direction)) {
+                            tempValidLocations.push({ name: place, description: locationDescriptions[place], coords: coordinates });
+                        } else {
+                            console.log(`Location '${place}' is outside the search area and will not be displayed.`);
+                        }
+                    } else {
+                        console.warn(`Could not find coordinates for: ${place}`);
+                    }
+                }
+                validLocations = tempValidLocations;
+                retries++;
+            }
+
+            // Add the new valid locations to the main droppedPins state
+            if (validLocations.length > 0) {
+                setDroppedPins(prevPins => {
+                    const newPins = validLocations.map(loc => ({
+                        id: uuidv4(), // Generate a unique ID for the new pin
+                        coords: loc.coords,
+                        description: loc.description,
+                        name: loc.name,
+                        isAIGenerated: true, // Tag this as an AI pin
+                        emoji: activeFilters.length > 0 ? filterEmojis[activeFilters[0]] : '📌', // NEW: Add emoji based on first active filter
+                        filters: activeFilters,
+                    }));
+                    return [...prevPins, ...newPins];
+                });
+            } else {
+                console.log(`No suggestions found after ${maxRetries} attempts.`);
+            }
+
+            // Display AI content in the popup
+            const aiContentToDisplay = validLocations.length > 0
+                ? 'Based on your selection, here are a few suggestions for the area of "' + placeName + '" when traveling towards the ' + directionMap[direction] + ' within approximately ' + radius + ' km.\n' + validLocations.map(loc => `**${loc.name}**: ${loc.description}`).join('\n')
+                : 'No suggestions found within the search area.';
+
+            // Cache the result
+            setDroppedPins(prevPins =>
+                prevPins.map(pin =>
+                    pin.id === pinId
+                        ? { ...pin, aiCache: { ...pin.aiCache, [cacheKey]: aiContentToDisplay } }
+                        : pin
+                )
+            );
+
+            setActivePopupData((prev) => ({
+                ...prev,
+                loading: false,
+                aiContent: aiContentToDisplay,
+                error: null,
+            }));
+
+        } catch (error) {
+            console.error('Error fetching AI suggestion:', error);
+            setActivePopupData((prev) => ({
+                ...prev,
+                loading: false,
+                aiContent: 'Could not load suggestions.',
+                error: error.message,
+            }));
+        }
+    }, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis]);
 
   
 
