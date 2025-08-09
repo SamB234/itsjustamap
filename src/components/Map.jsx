@@ -157,6 +157,16 @@ export default function Map() {
 
 
 
+  const filterEmojis = {
+  'Nature': '🌳',
+  'Culture': '🏛️',
+  'Adventure': '⛰️',
+  'Sports': '⚽',
+  'Beach': '🏖️',
+  'Food': '🍔',
+  'Nightlife': '🌃'
+};
+
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = null, filters = []) => {
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
         console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
@@ -209,7 +219,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }
 
         const aiGeneratedContent = data.suggestion; // This is the plain text from the backend.
-
         let newAiPins = [];
 
         // --- NEW LOGIC FOR PARSING TEXT AND DROPPING PINS ---
@@ -223,6 +232,10 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }
 
         if (locationsText.length > 0) {
+            // Determine which emoji to use based on the first selected filter
+            const selectedFilter = filters.length > 0 ? filters[0] : null;
+            const emoji = selectedFilter && filterEmojis[selectedFilter] ? filterEmojis[selectedFilter] : '📍';
+
             for (const place of locationsText) {
                 const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place)}.json?access_token=${import.meta.env.VITE_MAPBOX_API_KEY}`);
                 const geocodingData = await geocodingResponse.json();
@@ -231,6 +244,12 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                     const coordinates = geocodingData.features[0].center;
                     const el = document.createElement('div');
                     el.className = 'ai-pin';
+                    el.innerHTML = `<span style="font-size: 20px;">${emoji}</span>`;
+                    
+                    // You might want to adjust the background and border for better visibility
+                    el.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+                    el.style.border = '2px solid #000';
+                    
                     const pin = new mapboxgl.Marker({ element: el }).setLngLat(coordinates).addTo(map.current);
                     newAiPins.push(pin);
                 } else {
