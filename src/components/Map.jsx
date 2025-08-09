@@ -159,7 +159,8 @@ export default function Map() {
 
 
 
-const filterEmojis = {
+
+  const filterEmojis = {
   'Nature': '🌳',
   'Culture': '🏛️',
   'Adventure': '⛰️',
@@ -233,7 +234,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }
 
         if (locationsText.length > 0) {
-            // MOVED: These declarations must be inside this block
             const selectedFilter = filters.length > 0 ? filters[0] : null;
             const emoji = selectedFilter && filterEmojis[selectedFilter] ? filterEmojis[selectedFilter] : '📍';
 
@@ -244,10 +244,12 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                 if (geocodingData.features && geocodingData.features.length > 0) {
                     const coordinates = geocodingData.features[0].center;
 
+                    // Create the custom pin element with the emoji
                     const el = document.createElement('div');
                     el.className = 'ai-pin';
                     el.innerHTML = emoji;
 
+                    // Apply inline styles to ensure the emoji is visible and centered
                     Object.assign(el.style, {
                         fontSize: '20px',
                         backgroundColor: 'rgba(255, 255, 255, 0.8)',
@@ -258,9 +260,14 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                         width: '30px',
                         height: '30px',
                         borderRadius: '50%',
+                        cursor: 'pointer'
                     });
 
-                    const pin = new mapboxgl.Marker({ element: el }).setLngLat(coordinates).addTo(map.current);
+                    // CRITICAL: Pass the custom element to the Mapbox Marker constructor
+                    const pin = new mapboxgl.Marker({ element: el })
+                        .setLngLat(coordinates)
+                        .addTo(map.current);
+
                     newAiPins.push(pin);
                 } else {
                     console.warn(`Could not find coordinates for: ${place}`);
@@ -301,7 +308,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             error: error.message,
         }));
     }
-}, [map, aiPins, setDroppedPins, setActivePopupData, filters]); // Added filters to dependency array
+}, [map, aiPins, setDroppedPins, setActivePopupData, filters]);
  
 
   
