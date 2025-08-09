@@ -76,7 +76,7 @@ export default function Map() {
   const [pendingFilters, setPendingFilters] = useState([]);
 
   const [aiPins, setAiPins] = useState([]); 
-  const [filters, setFilters] = useState([]);
+//  const [filters, setFilters] = useState([]);
 
   // =======================================================================
   // CALLBACK FUNCTIONS (useCallback)
@@ -199,7 +199,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/generate-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ placeName, direction, lng, lat, radius, filters }),
+            body: JSON.stringify({ placeName, direction, lng, lat, radius, filters: activeFilters }), // <-- Use activeFilters here
         });
 
         const responseText = await response.text();
@@ -231,7 +231,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }
 
         if (locationsText.length > 0) {
-            const selectedFilter = filters.length > 0 ? filters[0] : null;
+            const selectedFilter = activeFilters.length > 0 ? activeFilters[0] : null; // <-- Use activeFilters here
             const emoji = selectedFilter && filterEmojis[selectedFilter] ? filterEmojis[selectedFilter] : '📍';
 
             for (const place of locationsText) {
@@ -269,7 +269,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         
         setAiPins(newAiPins);
 
-        const cacheKey = direction + '-' + filters.sort().join(',');
+        const cacheKey = direction + '-' + activeFilters.sort().join(','); // <-- Use activeFilters here
         
         setDroppedPins(prevPins => {
             return prevPins.map(pin => {
@@ -298,8 +298,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             error: error.message,
         }));
     }
-}, [map, aiPins, setDroppedPins, setActivePopupData, filters]); // CRITICAL: Added filters to dependency array
-
+}, [map, aiPins, setDroppedPins, setActivePopupData, activeFilters]); // <-- Update dependency array
  
 
   
