@@ -43,7 +43,7 @@ a:hover {
 }
 
 
-
+/*
 .ai-pin {
   background-image: url('https://itsjustamap.onrender.com/path/to/your/ai-pin-icon.png'); /* Replace this URL with your chosen pin icon */
   background-size: cover;
@@ -54,4 +54,16 @@ a:hover {
   border: 2px solid #fff;
   box-shadow: 0 0 5px rgba(0,0,0,0.5);
   background-color: #33aaff; /* A distinct color, e.g., a bright blue */
+}
+*/
+
+.ai-pin {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 5px rgba(0,0,0,0.5);
+  display: flex; /* Use flexbox to center the emoji */
+  align-items: center;
+  justify-content: center;
 }
