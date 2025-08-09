@@ -157,7 +157,7 @@ export default function Map() {
 
 
 
-  const filterEmojis = {
+const filterEmojis = {
   'Nature': '🌳',
   'Culture': '🏛️',
   'Adventure': '⛰️',
@@ -218,10 +218,9 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             throw new Error(data.details || data.error || 'Network response was not ok');
         }
 
-        const aiGeneratedContent = data.suggestion; // This is the plain text from the backend.
+        const aiGeneratedContent = data.suggestion;
         let newAiPins = [];
 
-        // --- NEW LOGIC FOR PARSING TEXT AND DROPPING PINS ---
         const locationRegex = /\d+\.\s+\*\*([^\*]+)\*\*/gm;
         let match;
         let locationsText = [];
@@ -232,7 +231,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }
 
         if (locationsText.length > 0) {
-            // Determine which emoji to use based on the first selected filter
             const selectedFilter = filters.length > 0 ? filters[0] : null;
             const emoji = selectedFilter && filterEmojis[selectedFilter] ? filterEmojis[selectedFilter] : '📍';
 
@@ -242,13 +240,23 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
                 if (geocodingData.features && geocodingData.features.length > 0) {
                     const coordinates = geocodingData.features[0].center;
+                    
                     const el = document.createElement('div');
                     el.className = 'ai-pin';
-                    el.innerHTML = `<span style="font-size: 20px;">${emoji}</span>`;
+                    el.innerHTML = emoji; // Directly set the emoji as innerHTML
                     
-                    // You might want to adjust the background and border for better visibility
-                    el.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
-                    el.style.border = '2px solid #000';
+                    // Use inline styles to override any conflicting CSS
+                    Object.assign(el.style, {
+                        fontSize: '20px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                        border: '2px solid #000',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '30px',
+                        height: '30px',
+                        borderRadius: '50%',
+                    });
                     
                     const pin = new mapboxgl.Marker({ element: el }).setLngLat(coordinates).addTo(map.current);
                     newAiPins.push(pin);
@@ -261,7 +269,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }
         
         setAiPins(newAiPins);
-        // --- END OF NEW LOGIC ---
 
         const cacheKey = direction + '-' + filters.sort().join(',');
         
