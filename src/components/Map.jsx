@@ -160,7 +160,8 @@ export default function Map() {
 
 
 
-  const filterEmojis = {
+
+const filterEmojis = {
   'Nature': '🌳',
   'Culture': '🏛️',
   'Adventure': '⛰️',
@@ -224,7 +225,8 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         const aiGeneratedContent = data.suggestion;
         let newAiPins = [];
 
-        const locationRegex = /\d+\.\s+\*\*([^\*]+)\*\*/gm;
+        // --- NEW FLEXIBLE REGULAR EXPRESSION ---
+        const locationRegex = /\*\*(.*?)\*\*/g;
         let match;
         let locationsText = [];
 
@@ -244,12 +246,10 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                 if (geocodingData.features && geocodingData.features.length > 0) {
                     const coordinates = geocodingData.features[0].center;
 
-                    // Create the custom pin element with the emoji
                     const el = document.createElement('div');
                     el.className = 'ai-pin';
                     el.innerHTML = emoji;
 
-                    // Apply inline styles to ensure the emoji is visible and centered
                     Object.assign(el.style, {
                         fontSize: '20px',
                         backgroundColor: 'rgba(255, 255, 255, 0.8)',
@@ -263,7 +263,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                         cursor: 'pointer'
                     });
 
-                    // CRITICAL: Pass the custom element to the Mapbox Marker constructor
                     const pin = new mapboxgl.Marker({ element: el })
                         .setLngLat(coordinates)
                         .addTo(map.current);
@@ -309,6 +308,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }));
     }
 }, [map, aiPins, setDroppedPins, setActivePopupData, filters]);
+  
  
 
   
