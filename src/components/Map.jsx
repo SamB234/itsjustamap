@@ -157,6 +157,9 @@ export default function Map() {
 
 
 
+
+// Map.jsx
+
 const filterEmojis = {
   'Nature': '🌳',
   'Culture': '🏛️',
@@ -231,6 +234,8 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }
 
         if (locationsText.length > 0) {
+            // **CORRECTED LOGIC:**
+            // Use the first filter in the filters array, or default to a generic pin.
             const selectedFilter = filters.length > 0 ? filters[0] : null;
             const emoji = selectedFilter && filterEmojis[selectedFilter] ? filterEmojis[selectedFilter] : '📍';
 
@@ -243,9 +248,8 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                     
                     const el = document.createElement('div');
                     el.className = 'ai-pin';
-                    el.innerHTML = emoji; // Directly set the emoji as innerHTML
+                    el.innerHTML = emoji;
                     
-                    // Use inline styles to override any conflicting CSS
                     Object.assign(el.style, {
                         fontSize: '20px',
                         backgroundColor: 'rgba(255, 255, 255, 0.8)',
@@ -300,6 +304,9 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }));
     }
 }, [map, aiPins, setDroppedPins, setActivePopupData]);
+
+
+  
 
   
   
