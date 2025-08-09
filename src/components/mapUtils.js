@@ -1,4 +1,5 @@
 // mapUtils.js
+// This file contains a collection of geospatial utility functions for mapping applications.
 
 // Helper functions for geographical calculations
 // (Simplified for demonstration; for production, consider a robust geo-library like Turf.js)
@@ -239,15 +240,28 @@ export function getCurvedLinePoints(startCoords, endCoords, numPoints = 50, offs
  * @returns {boolean} True if the point is inside the polygon, false otherwise
  */
 export function isPointInPolygon(point, polygon) {
-    let x = point[0], y = point[1];
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-        let xi = polygon[i][0], yi = polygon[i][1];
-        let xj = polygon[j][0], yj = polygon[j][1];
+    const x = point[0]; // Point's longitude
+    const y = point[1]; // Point's latitude
 
-        let intersect = ((yi > y) !== (yj > y))
-            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-        if (intersect) inside = !inside;
+    let isInside = false;
+
+    // Loop through each edge of the polygon
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i][0]; // Longitude of the current vertex
+        const yi = polygon[i][1]; // Latitude of the current vertex
+        const xj = polygon[j][0]; // Longitude of the previous vertex
+        const yj = polygon[j][1]; // Latitude of the previous vertex
+
+        // Ray-casting algorithm: check if a horizontal ray from the point
+        // intersects with the polygon edge.
+        const intersect = ((yi > y) !== (yj > y)) &&
+            (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        
+        // If the ray intersects, flip the state of `isInside`.
+        if (intersect) {
+            isInside = !isInside;
+        }
     }
-    return inside;
+
+    return isInside;
 }
