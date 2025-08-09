@@ -53,6 +53,45 @@ function getPointAtDistanceBearing(center, distanceKm, bearingDegrees) {
 }
 
 /**
+ * Calculates the distance between two points on the Earth's surface using the Haversine formula.
+ * @param {[number, number]} p1 [longitude, latitude] of the first point
+ * @param {[number, number]} p2 [longitude, latitude] of the second point
+ * @returns {number} The distance in kilometers
+ */
+function getDistance(p1, p2) {
+    const R = 6371; // Earth's radius in kilometers
+    const [lon1, lat1] = p1.map(toRadians);
+    const [lon2, lat2] = p2.map(toRadians);
+
+    const deltaLon = lon2 - lon1;
+    const deltaLat = lat2 - lat1;
+
+    const a = Math.sin(deltaLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+}
+
+/**
+ * Calculates the bearing (direction) from point p1 to p2.
+ * @param {[number, number]} p1 [longitude, latitude] of the start point
+ * @param {[number, number]} p2 [longitude, latitude] of the end point
+ * @returns {number} The bearing in degrees (0-360)
+ */
+function getBearing(p1, p2) {
+    const [lon1, lat1] = p1.map(toRadians);
+    const [lon2, lat2] = p2.map(toRadians);
+
+    const deltaLon = lon2 - lon1;
+
+    const y = Math.sin(deltaLon) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
+
+    let bearing = toDegrees(Math.atan2(y, x));
+    return (bearing + 360) % 360; // Normalize to 0-360 degrees
+}
+
+/**
  * Generates points for a full circle (polygon)
  * @param {[number, number]} center [longitude, latitude]
  * @param {number} radiusKm Radius in kilometers
@@ -233,35 +272,51 @@ export function getCurvedLinePoints(startCoords, endCoords, numPoints = 50, offs
 }
 
 /**
- * Checks if a point is inside a polygon using the Ray-Casting algorithm.
- * This is the same function from my previous response, now moved here.
+ * Checks if a point is within the arc defined by a center, radius, and direction.
+ * This is a simpler, more direct method than polygon-based checking.
  * @param {[number, number]} point [longitude, latitude]
- * @param {Array<[number, number]>} polygon Array of [longitude, latitude] points
- * @returns {boolean} True if the point is inside the polygon, false otherwise
+ * @param {[number, number]} center [longitude, latitude]
+ * @param {number} radiusKm Radius of the arc in kilometers
+ * @param {string} direction 'N', 'S', 'E', 'W' OR 'North', 'South', 'East', 'West'
+ * @param {number} [sweepAngle=90] The total angle covered by the arc
+ * @returns {boolean} True if the point is within the arc, false otherwise
  */
-export function isPointInPolygon(point, polygon) {
-    const x = point[0]; // Point's longitude
-    const y = point[1]; // Point's latitude
-
-    let isInside = false;
-
-    // Loop through each edge of the polygon
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-        const xi = polygon[i][0]; // Longitude of the current vertex
-        const yi = polygon[i][1]; // Latitude of the current vertex
-        const xj = polygon[j][0]; // Longitude of the previous vertex
-        const yj = polygon[j][1]; // Latitude of the previous vertex
-
-        // Ray-casting algorithm: check if a horizontal ray from the point
-        // intersects with the polygon edge.
-        const intersect = ((yi > y) !== (yj > y)) &&
-            (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-        
-        // If the ray intersects, flip the state of `isInside`.
-        if (intersect) {
-            isInside = !isInside;
-        }
+export function isPointInArc(point, center, radiusKm, direction, sweepAngle = 90) {
+    // Step 1: Check if the point is within the radius.
+    const distance = getDistance(center, point);
+    if (distance > radiusKm) {
+        return false;
     }
 
-    return isInside;
+    // Step 2: Check if the point's bearing is within the arc's angular range.
+    const directionMap = {
+        'N': 'N', 'North': 'N',
+        'E': 'E', 'East': 'E',
+        'S': 'S', 'South': 'S',
+        'W': 'W', 'West': 'W',
+    };
+    const normalizedDirection = directionMap[direction];
+
+    let arcCenterBearing;
+    switch (normalizedDirection) {
+        case 'N': arcCenterBearing = 0; break;
+        case 'E': arcCenterBearing = 90; break;
+        case 'S': arcCenterBearing = 180; break;
+        case 'W': arcCenterBearing = 270; break;
+        default: return false; // Invalid direction
+    }
+    
+    // Define the bearing range of the arc
+    const startBearing = (arcCenterBearing - sweepAngle / 2 + 360) % 360;
+    const endBearing = (arcCenterBearing + sweepAngle / 2) % 360;
+
+    // Get the bearing of the point from the center
+    const pointBearing = getBearing(center, point);
+
+    // This handles the special case where the arc crosses the 0/360 degree line (e.g., North)
+    if (startBearing > endBearing) {
+        return pointBearing >= startBearing || pointBearing <= endBearing;
+    } else {
+        return pointBearing >= startBearing && pointBearing <= endBearing;
+    }
 }
