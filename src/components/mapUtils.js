@@ -1,5 +1,7 @@
 // mapUtils.js
+
 // This file contains a collection of geospatial utility functions for mapping applications.
+// It has been updated to use a more forgiving arc shape for AI suggestions.
 
 // Helper functions for geographical calculations
 // (Simplified for demonstration; for production, consider a robust geo-library like Turf.js)
@@ -107,10 +109,12 @@ export function getCirclePoints(center, radiusKm, numSegments = 64) {
     return points;
 }
 
+// KEY UPDATE: New arc drawing logic to create a more forgiving shape.
+const MIN_ARC_WIDTH_DEGREES = 15; // Minimum width of the arc at its origin
+
 /**
  * Generates GeoJSON coordinates for an arc segment (a pie slice).
  * This will create a polygon starting from the center, going to the arc, and back to the center.
- *
  * @param {[number, number]} center [longitude, latitude]
  * @param {number} radiusKm Radius of the arc in kilometers
  * @param {string} direction 'N', 'S', 'E', 'W' OR 'North', 'South', 'East', 'West'
@@ -119,43 +123,30 @@ export function getCirclePoints(center, radiusKm, numSegments = 64) {
  * @returns {Array<[number, number]>} Array of [longitude, latitude] points forming the arc polygon
  */
 export function getArcPoints(center, radiusKm, direction, sweepAngle = 90, numSegments = 20) {
-    const directionMap = {
-        'N': 'N', 'North': 'N',
-        'E': 'E', 'East': 'E',
-        'S': 'S', 'South': 'S',
-        'W': 'W', 'West': 'W',
+    const directionBearings = {
+        'N': 0, 'North': 0,
+        'E': 90, 'East': 90,
+        'S': 180, 'South': 180,
+        'W': 270, 'West': 270,
     };
+    const centerBearing = directionBearings[direction];
 
-    const normalizedDirection = directionMap[direction];
-
-    let startBearing;
-    switch (normalizedDirection) {
-        case 'N':
-            startBearing = 360 - (sweepAngle / 2);
-            break;
-        case 'E':
-            startBearing = 90 - (sweepAngle / 2);
-            break;
-        case 'S':
-            startBearing = 180 - (sweepAngle / 2);
-            break;
-        case 'W':
-            startBearing = 270 - (sweepAngle / 2);
-            break;
-        default:
-            console.warn(`Invalid direction for arc: ${direction}`);
-            return [];
+    if (centerBearing === undefined) {
+        console.error("Invalid direction provided:", direction);
+        return [];
     }
 
     const points = [center]; // Start from the center to form a pie slice
 
+    const arcStartBearing = centerBearing - sweepAngle / 2;
+    const arcEndBearing = centerBearing + sweepAngle / 2;
+
     for (let i = 0; i <= numSegments; i++) {
-        const bearing = startBearing + (i * sweepAngle) / numSegments;
+        const bearing = arcStartBearing + (i * sweepAngle) / numSegments;
         points.push(getPointAtDistanceBearing(center, radiusKm, bearing));
     }
 
     points.push(center); // Close the polygon back to the center
-
     return points;
 }
 
@@ -225,7 +216,6 @@ export function getCurvedArc(coordsArray) {
 /**
  * Generates GeoJSON coordinates for a curved line between two points.
  * Uses a quadratic Bezier curve for a slight arc, ensuring the curve is always "upwards" (umbrella shape).
- *
  * @param {[number, number]} startCoords [longitude, latitude] of the start point
  * @param {[number, number]} endCoords [longitude, latitude] of the end point
  * @param {number} [numPoints=50] Number of interpolation points for the curve (higher = smoother)
@@ -271,9 +261,9 @@ export function getCurvedLinePoints(startCoords, endCoords, numPoints = 50, offs
     return points;
 }
 
+// KEY UPDATE: New filtering logic to create a more forgiving arc near the origin.
 /**
  * Checks if a point is within the arc defined by a center, radius, and direction.
- * This is a simpler, more direct method than polygon-based checking.
  * @param {[number, number]} point [longitude, latitude]
  * @param {[number, number]} center [longitude, latitude]
  * @param {number} radiusKm Radius of the arc in kilometers
