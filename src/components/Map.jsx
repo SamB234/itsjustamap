@@ -161,13 +161,13 @@ export default function Map() {
 
 
 const filterEmojis = {
-  'Nature': '🌳',
-  'Culture': '🏛️',
-  'Adventure': '⛰️',
-  'Sports': '⚽',
-  'Beach': '🏖️',
-  'Food': '🍔',
-  'Nightlife': '🌃'
+  'nature': '🌳',
+  'culture': '🏛️',
+  'adventure': '⛰️',
+  'sports': '⚽',
+  'beach': '🏖️',
+  'food': '🍔',
+  'nightlife': '🌃'
 };
 
 // ... (rest of the code)
