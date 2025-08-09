@@ -170,6 +170,8 @@ const filterEmojis = {
   'Nightlife': '🌃'
 };
 
+// ... (rest of the code)
+
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = null) => {
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
         console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
@@ -196,10 +198,11 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
     }
 
     try {
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/generate-suggestion`, {
+        // Use the activeFilters state directly for the API call
+        const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ placeName, direction, lng, lat, radius, filters: activeFilters }), // <-- Use activeFilters here
+            body: JSON.stringify({ placeName, direction, lng, lat, radius, filters: activeFilters }),
         });
 
         const responseText = await response.text();
@@ -220,10 +223,9 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }
 
         const aiGeneratedContent = data.suggestion;
-        let newAiPins = [];
         const locationRegex = /\*\*(.*?)\*\*/g;
         let match;
-        let locationsText = [];
+        const locationsText = [];
 
         while ((match = locationRegex.exec(aiGeneratedContent)) !== null) {
             const place = match[1].trim();
@@ -231,11 +233,16 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }
 
         if (locationsText.length > 0) {
-            const selectedFilter = activeFilters.length > 0 ? activeFilters[0] : null; // <-- Use activeFilters here
+            // Get the first active filter to determine the emoji
+            const selectedFilter = activeFilters.length > 0 ? activeFilters[0] : null;
+            // Use the filter directly as the key to get the correct emoji
             const emoji = selectedFilter && filterEmojis[selectedFilter] ? filterEmojis[selectedFilter] : '📍';
+            
+            console.log(`Applying emoji for filter: ${selectedFilter}`, emoji);
 
+            const newAiPins = [];
             for (const place of locationsText) {
-                const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place)}.json?access_token=${import.meta.env.VITE_MAPBOX_API_KEY}`);
+                const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place)}.json?access_token=${mapboxgl.accessToken}`);
                 const geocodingData = await geocodingResponse.json();
 
                 if (geocodingData.features && geocodingData.features.length > 0) {
@@ -243,7 +250,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                     const el = document.createElement('div');
                     el.className = 'ai-pin';
                     el.innerHTML = emoji;
-
+                    
                     Object.assign(el.style, {
                         fontSize: '20px',
                         backgroundColor: 'rgba(255, 255, 255, 0.8)',
@@ -263,25 +270,21 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                     console.warn(`Could not find coordinates for: ${place}`);
                 }
             }
+            setAiPins(newAiPins);
         } else {
             console.log("No locations found in the AI response to place pins.");
+            setAiPins([]);
         }
         
-        setAiPins(newAiPins);
-
-        const cacheKey = direction + '-' + activeFilters.sort().join(','); // <-- Use activeFilters here
+        const cacheKey = direction + '-' + activeFilters.sort().join(',');
         
-        setDroppedPins(prevPins => {
-            return prevPins.map(pin => {
-                if (pin.id === pinId) {
-                    return {
-                        ...pin,
-                        aiCache: { ...pin.aiCache, [cacheKey]: aiGeneratedContent, }
-                    };
-                }
-                return pin;
-            });
-        });
+        setDroppedPins(prevPins =>
+            prevPins.map(pin =>
+                pin.id === pinId
+                    ? { ...pin, aiCache: { ...pin.aiCache, [cacheKey]: aiGeneratedContent } }
+                    : pin
+            )
+        );
 
         setActivePopupData((prev) => ({
             ...prev,
@@ -298,7 +301,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             error: error.message,
         }));
     }
-}, [map, aiPins, setDroppedPins, setActivePopupData, activeFilters]); // <-- Update dependency array
+}, [map, aiPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis]); // Added filterEmojis to dependency array
  
 
   
