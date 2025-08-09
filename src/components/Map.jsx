@@ -160,7 +160,6 @@ export default function Map() {
 
 
 
-
 const filterEmojis = {
   'Nature': '🌳',
   'Culture': '🏛️',
@@ -183,7 +182,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         return;
     }
 
-    // Set the loading state before the fetch call
     setActivePopupData(prev => ({
         ...prev,
         loading: true,
@@ -192,10 +190,9 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         radius: direction === 'Overview' ? null : radius,
     }));
 
-    // Clear any existing AI-generated pins from the map before fetching new ones
     if (aiPins.length > 0) {
         aiPins.forEach(pin => pin.remove());
-        setAiPins([]); // Clear the state
+        setAiPins([]);
     }
 
     try {
@@ -224,8 +221,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
         const aiGeneratedContent = data.suggestion;
         let newAiPins = [];
-
-        // --- NEW FLEXIBLE REGULAR EXPRESSION ---
         const locationRegex = /\*\*(.*?)\*\*/g;
         let match;
         let locationsText = [];
@@ -245,7 +240,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
                 if (geocodingData.features && geocodingData.features.length > 0) {
                     const coordinates = geocodingData.features[0].center;
-
                     const el = document.createElement('div');
                     el.className = 'ai-pin';
                     el.innerHTML = emoji;
@@ -263,10 +257,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                         cursor: 'pointer'
                     });
 
-                    const pin = new mapboxgl.Marker({ element: el })
-                        .setLngLat(coordinates)
-                        .addTo(map.current);
-
+                    const pin = new mapboxgl.Marker({ element: el }).setLngLat(coordinates).addTo(map.current);
                     newAiPins.push(pin);
                 } else {
                     console.warn(`Could not find coordinates for: ${place}`);
@@ -275,11 +266,11 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         } else {
             console.log("No locations found in the AI response to place pins.");
         }
-
+        
         setAiPins(newAiPins);
 
         const cacheKey = direction + '-' + filters.sort().join(',');
-
+        
         setDroppedPins(prevPins => {
             return prevPins.map(pin => {
                 if (pin.id === pinId) {
@@ -307,8 +298,8 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             error: error.message,
         }));
     }
-}, [map, aiPins, setDroppedPins, setActivePopupData, filters]);
-  
+}, [map, aiPins, setDroppedPins, setActivePopupData, filters]); // CRITICAL: Added filters to dependency array
+
  
 
   
