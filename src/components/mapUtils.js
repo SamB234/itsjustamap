@@ -73,15 +73,23 @@ export function getCirclePoints(center, radiusKm, numSegments = 64) {
  *
  * @param {[number, number]} center [longitude, latitude]
  * @param {number} radiusKm Radius of the arc in kilometers
- * @param {string} direction 'N', 'S', 'E', 'W'
+ * @param {string} direction 'N', 'S', 'E', 'W' OR 'North', 'South', 'East', 'West'
  * @param {number} [sweepAngle=90] The total angle covered by the arc (e.g., 90 for a quarter circle)
  * @param {number} [numSegments=20] Number of segments for the arc itself (higher = smoother)
  * @returns {Array<[number, number]>} Array of [longitude, latitude] points forming the arc polygon
  */
 export function getArcPoints(center, radiusKm, direction, sweepAngle = 90, numSegments = 20) {
+    const directionMap = {
+        'N': 'N', 'North': 'N',
+        'E': 'E', 'East': 'E',
+        'S': 'S', 'South': 'S',
+        'W': 'W', 'West': 'W',
+    };
+
+    const normalizedDirection = directionMap[direction];
+
     let startBearing;
-    // CORRECTED: Use single letter direction codes
-    switch (direction) {
+    switch (normalizedDirection) {
         case 'N':
             startBearing = 360 - (sweepAngle / 2);
             break;
