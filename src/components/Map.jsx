@@ -271,9 +271,10 @@ const townsData = await townsResponse.json();
         console.log(`Found towns: ${townNames.join(', ')}`);
 
         // The AI prompt is now more precise, including the direction.
-        const prompt = `Given the following list of places: ${townNames.join(', ')}. The user is exploring towards the ${directionMap[direction]} of ${placeName}, within a radius of ${radius}km. They are interested in a trip with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion of a place from the list and why it fits the filters and the general direction. Only include suggestions that are geographically plausible for the given direction and radius. Format your response as a numbered list with each item starting with the place name in bold, followed by a colon and the description. For example: **Townsville**: A great spot for foodies.`;
-        
-        const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
+const directionText = direction !== 'Overview' ? ` towards the ${directionMap[direction]}` : '';
+const prompt = `Given the following list of places: ${townNames.join(', ')}. The user is exploring${directionText} of ${placeName}, within a radius of ${radius}km. They are interested in a trip with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion of a place from the list and why it fits the filters and the general direction. Only include suggestions that are geographically plausible for the given direction and radius. Format your response as a numbered list with each item starting with the place name in bold, followed by a colon and the description. For example: **Townsville**: A great spot for foodies.`;        
+    
+      const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt }),
@@ -317,20 +318,28 @@ const townsData = await townsResponse.json();
             }
         }
 
-        if (geocodedLocations.length > 0) {
-            setDroppedPins(prevPins => {
-                const newPins = geocodedLocations.map(loc => ({
-                    id: uuidv4(),
-                    coords: loc.coords,
-                    description: loc.description,
-                    name: loc.name,
-                    isAIGenerated: true,
-                    emoji: activeFilters.length > 0 ? (filterEmojis[activeFilters[0].toLowerCase()] || '📌') : '📌',
-                    filters: activeFilters,
-                }));
-                return [...prevPins, ...newPins];
-            });
-        } else {
+
+if (geocodedLocations.length > 0) {
+    setDroppedPins(prevPins => {
+        const aiPinIds = prevPins.filter(pin => pin.isAIGenerated).map(pin => pin.id);
+        const nonAiPins = prevPins.filter(pin => !pin.isAIGenerated);
+
+        const newPins = geocodedLocations.map(loc => ({
+            id: uuidv4(),
+            coords: loc.coords,
+            description: loc.description,
+            name: loc.name,
+            isAIGenerated: true,
+            emoji: activeFilters.length > 0 ? (filterEmojis[activeFilters[0].toLowerCase()] || '📌') : '📌',
+            filters: activeFilters,
+        }));
+        
+        return [...nonAiPins, ...newPins];
+    });
+}
+      
+        
+        else {
             console.log('No suggestions found within the search area.');
         }
 
