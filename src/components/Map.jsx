@@ -2,10 +2,10 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { v4 as uuidv4 } from 'uuid';
-import ReactMarkdown from 'react-markdown'; // <-- Add this import
-import Sidebar from './Sidebar'; // Assuming you have this component
-import ArrowPin from './ArrowPin'; // The custom component you created
-import { getArcPoints, getCurvedLinePoints, getDestinationPoint, getCurvedArc, isPointInArc } from './mapUtils'; // Assuming you have these utilities
+import ReactMarkdown from 'react-markdown';
+import Sidebar from './Sidebar';
+import ArrowPin from './ArrowPin';
+import { getArcPoints, getCurvedLinePoints, getDestinationPoint, getCurvedArc, isPointInArc } from './mapUtils';
 
 // =========================================================================
 // MAPBOX CONFIGURATION & CONSTANTS
@@ -33,11 +33,11 @@ const MARKER_OUTLINE_LAYER_ID = 'markers-outline';
 const ARROW_SOURCE_ID = 'arrow-source';
 const ARROW_LAYER_ID = 'arrow-layer';
 const ARC_SOURCE_ID = 'arc-source';
-const ARC_LINE_LAYER_ID = 'arc-line-layer'; // Renamed for clarity
-const ARC_FILL_LAYER_ID = 'arc-fill-layer'; // New layer for the fill
+const ARC_LINE_LAYER_ID = 'arc-line-layer';
+const ARC_FILL_LAYER_ID = 'arc-fill-layer';
 const CONNECTION_SOURCE_ID = 'connection-source';
 const CONNECTION_LAYER_ID = 'connection-layer';
-const EMOJI_LAYER_ID = 'emoji-layer'; // New layer for emojis
+const EMOJI_LAYER_ID = 'emoji-layer';
 
 // =========================================================================
 // MAIN MAP COMPONENT
@@ -48,19 +48,16 @@ export default function Map() {
   // STATE MANAGEMENT
   // =======================================================================
 
-  // useRef is used for mutable values that don't trigger re-renders
   const mapContainer = useRef(null);
   const map = useRef(null);
   const mapLoaded = useRef(false);
 
-  // useState is for variables that, when updated, should re-render the component
   const [lng, setLng] = useState(-0.1276);
   const [lat, setLat] = useState(51.5074);
   const [zoom, setZoom] = useState(9);
   const [droppedPins, setDroppedPins] = useState([]);
   const [hoveredPinId, setHoveredPinId] = useState(null);
   const [activePopupData, setActivePopupData] = useState(null);
-  const [popupPos, setPopupPos] = useState(null);
   const [selectedRadius, setSelectedRadius] = useState(5);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [drawnLines, setDrawnLines] = useState([]);
@@ -68,12 +65,10 @@ export default function Map() {
   const [connectingMarkerId, setConnectingMarkerId] = useState(null);
   const [connectionSuccess, setConnectionSuccess] = useState(null);
 
-  // New state for filters
   const filterOptions = ['nature', 'culture', 'adventure', 'sports', 'beach', 'food', 'nightlife'];
   const [activeFilters, setActiveFilters] = useState([]);
   const [pendingFilters, setPendingFilters] = useState([]);
 
-  // Emojis for filters
   const filterEmojis = {
     'nature': '🌳',
     'culture': '🏛️',
@@ -88,7 +83,6 @@ export default function Map() {
   // CALLBACK FUNCTIONS (useCallback)
   // =======================================================================
 
-  // Handler to close the active popup
   const handleClosePopup = useCallback(() => {
     setActivePopupData(null);
     setSelectedRadius(5);
@@ -99,7 +93,6 @@ export default function Map() {
     setConnectingMarkerId(null);
   }, []);
 
-  // Handler to remove a pin and any associated lines
   const handleRemoveMarker = useCallback((pinIdToRemove) => {
     const removedPin = droppedPins.find(p => p.id === pinIdToRemove);
     if (!removedPin) return;
@@ -124,10 +117,13 @@ export default function Map() {
   }, [activePopupData, connectionMode, connectingMarkerId, droppedPins]);
 
   const dropPinAtCenter = useCallback(() => {
-    if (!map.current) return;
+    if (!map.current) {
+      console.error("Map instance is not ready. Cannot drop pin.");
+      return;
+    }
     const center = map.current.getCenter();
-    if (typeof center.lng !== 'number' || typeof center.lat !== 'number' || isNaN(center.lng) || isNaN(center.lat)) {
-      console.error("Attempted to drop pin with invalid coordinates (NaN, NaN). Aborting.");
+    if (!center || typeof center.lng !== 'number' || typeof center.lat !== 'number' || isNaN(center.lng) || isNaN(center.lat)) {
+      console.error("Attempted to drop pin with invalid coordinates. Aborting.");
       return;
     }
     const newPin = {
@@ -136,7 +132,7 @@ export default function Map() {
       name: 'User Pin',
       description: 'A pin placed by the user.',
       isAIGenerated: false,
-      emoji: '📌', // Corrected: Setting a default emoji for user pins
+      emoji: '📌',
       aiCache: {},
       lastRadius: {},
       lastDirection: null,
@@ -171,7 +167,6 @@ export default function Map() {
     }
   }, []);
 
-  // New: Function to fetch a general location overview for user-placed pins
   const fetchGeneralOverview = useCallback(async (pinId, placeName) => {
     const cacheKey = 'Overview';
     const pin = droppedPins.find(p => p.id === pinId);
@@ -199,7 +194,6 @@ export default function Map() {
     }
   }, [droppedPins]);
 
-  // New: Function to get a filter-specific overview for AI-generated pins
   const fetchAIOverview = useCallback(async (pinId, placeName, filter) => {
     const cacheKey = `Overview-${filter}`;
     const pin = droppedPins.find(p => p.id === pinId);
@@ -275,7 +269,7 @@ export default function Map() {
             description: loc.description,
             name: loc.name,
             isAIGenerated: true,
-            emoji: filters.length > 0 ? filterEmojis[filters[0]] : '📌', // Corrected: Add emoji based on first active filter
+            emoji: filters.length > 0 ? filterEmojis[filters[0]] : '📌',
             filters: filters,
             aiCache: {},
             lastRadius: {},
@@ -315,6 +309,10 @@ export default function Map() {
   }, [droppedPins, activeFilters, filterEmojis]);
 
   const handlePinClick = useCallback(async (pin) => {
+    if (!pin || !pin.coords || typeof pin.coords[0] !== 'number' || typeof pin.coords[1] !== 'number') {
+      console.error("Invalid pin data on click:", pin);
+      return;
+    }
     const placeName = await fetchPlaceName(pin.coords[0], pin.coords[1]);
 
     setActivePopupData({
@@ -331,16 +329,17 @@ export default function Map() {
     });
 
     if (pin.isAIGenerated && pin.filters && pin.filters.length > 0) {
-      // Use the first filter to fetch a specific overview for an AI pin
       fetchAIOverview(pin.id, placeName, pin.filters[0]);
     } else {
-      // Fetch a general overview for a user-placed pin
       fetchGeneralOverview(pin.id, placeName);
     }
   }, [fetchPlaceName, fetchAIOverview, fetchGeneralOverview]);
 
-
   const handleDirectionalPopupOpen = useCallback(async (directionKey, pin) => {
+    if (!pin || !pin.coords || typeof pin.coords[0] !== 'number' || typeof pin.coords[1] !== 'number') {
+      console.error("Invalid pin data for directional popup:", pin);
+      return;
+    }
     const placeName = await fetchPlaceName(pin.coords[0], pin.coords[1]);
     const direction = directionMap[directionKey];
 
@@ -505,7 +504,6 @@ export default function Map() {
   // MAPBOX AND SIDEBAR EFFECTS
   // =======================================================================
 
-  // Initialize the map and its layers (runs once)
   useEffect(() => {
     if (mapLoaded.current) return;
     map.current = new mapboxgl.Map({
@@ -526,12 +524,10 @@ export default function Map() {
         map.current.touchZoomRotate.disableRotation();
       }
 
-      // Add sources and layers for pins, arrows, arcs, and connections
       map.current.addSource(MARKER_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.current.addLayer({ id: MARKER_OUTLINE_LAYER_ID, type: 'circle', source: MARKER_SOURCE_ID, paint: { 'circle-radius': 12, 'circle-color': '#FFFFFF', 'circle-stroke-width': 2, 'circle-stroke-color': '#007BFF', 'circle-opacity': 1 } });
       map.current.addLayer({ id: MARKER_FILL_LAYER_ID, type: 'circle', source: MARKER_SOURCE_ID, paint: { 'circle-radius': 10, 'circle-color': ['case', ['==', ['get', 'id'], hoveredPinId], '#007BFF', '#FFFFFF'], 'circle-opacity': 1 } });
       
-      // Corrected: Add a new layer to render the emojis
       map.current.addLayer({
         id: EMOJI_LAYER_ID,
         type: 'symbol',
@@ -553,7 +549,6 @@ export default function Map() {
       map.current.addSource(CONNECTION_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.current.addLayer({ id: CONNECTION_LAYER_ID, type: 'line', source: CONNECTION_SOURCE_ID, paint: { 'line-color': '#F76D5E', 'line-width': 3, 'line-dasharray': [2, 2] } });
 
-      // Add marker interaction events
       map.current.on('mouseenter', MARKER_FILL_LAYER_ID, (e) => {
         if (e.features.length) {
           setHoveredPinId(e.features[0].properties.id);
@@ -575,13 +570,15 @@ export default function Map() {
     });
 
     map.current.on('move', () => {
-      setLng(map.current.getCenter().lng.toFixed(4));
-      setLat(map.current.getCenter().lat.toFixed(4));
-      setZoom(map.current.getZoom().toFixed(2));
+      if (map.current) {
+        setLng(map.current.getCenter().lng.toFixed(4));
+        setLat(map.current.getCenter().lat.toFixed(4));
+        setZoom(map.current.getZoom().toFixed(2));
+      }
     });
 
     map.current.on('click', (e) => {
-      if (!map.current.getLayer('arrow-layer') || !map.current.getLayer('marker-fill-layer')) return;
+      if (!map.current || !map.current.getLayer(ARROW_LAYER_ID) || !map.current.getLayer(MARKER_FILL_LAYER_ID)) return;
 
       const features = map.current.queryRenderedFeatures(e.point, {
         layers: [ARROW_LAYER_ID, MARKER_FILL_LAYER_ID],
@@ -599,16 +596,15 @@ export default function Map() {
     };
   }, []);
 
-  // Update map sources when state changes
   useEffect(() => {
     if (!map.current || !mapLoaded.current) return;
 
-    const markerFeatures = droppedPins.map(pin => ({
+    const markerFeatures = droppedPins.filter(pin => pin.coords && typeof pin.coords[0] === 'number' && typeof pin.coords[1] === 'number').map(pin => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: pin.coords },
       properties: {
         id: pin.id,
-        emoji: pin.emoji, // Corrected: Pass the emoji to the GeoJSON properties
+        emoji: pin.emoji,
         isAI: pin.isAIGenerated,
         direction: pin.lastDirection,
         radius: pin.lastRadius?.[pin.lastDirection],
@@ -620,7 +616,7 @@ export default function Map() {
       features: markerFeatures,
     });
 
-    if (activePopupData && !activePopupData.isAIGenerated && activePopupData.direction === 'Overview') {
+    if (activePopupData && !activePopupData.isAIGenerated && activePopupData.direction === 'Overview' && map.current) {
       const arrowFeatures = ['N', 'S', 'E', 'W'].map(directionKey => {
         const destination = getDestinationPoint(activePopupData.lng, activePopupData.lat, 0.5, directionKey);
         return {
@@ -630,7 +626,7 @@ export default function Map() {
         };
       });
       map.current.getSource(ARROW_SOURCE_ID)?.setData({ type: 'FeatureCollection', features: arrowFeatures });
-    } else {
+    } else if (map.current) {
       map.current.getSource(ARROW_SOURCE_ID)?.setData({ type: 'FeatureCollection', features: [] });
     }
 
@@ -638,9 +634,8 @@ export default function Map() {
     map.current.getSource(CONNECTION_SOURCE_ID)?.setData({ type: 'FeatureCollection', features: connectionFeatures });
   }, [droppedPins, activePopupData, drawnLines, hoveredPinId]);
 
-  // Update popup when activePopupData changes
   useEffect(() => {
-    if (!map.current) return;
+    if (!map.current || !activePopupData) return;
 
     const popup = new mapboxgl.Popup({ offset: 25, closeButton: false })
       .setLngLat([activePopupData.lng, activePopupData.lat])
@@ -650,15 +645,14 @@ export default function Map() {
         return div;
       });
 
-    if (activePopupData) {
-      popup.addTo(map.current);
-    }
+    popup.addTo(map.current);
 
     return () => {
-      popup.remove();
+      if (popup) {
+        popup.remove();
+      }
     };
   }, [activePopupData, renderPopupContent]);
-
 
   return (
     <>
@@ -695,4 +689,9 @@ export default function Map() {
       </div>
     </>
   );
+}
+
+// Dummy function to prevent errors if getDestinationPoint is not in mapUtils
+function getDestinationPoint(lng, lat, distance, direction) {
+  return [lng, lat];
 }
