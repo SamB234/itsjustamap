@@ -527,7 +527,7 @@ export default function Map() {
       map.current.addSource(MARKER_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.current.addLayer({ id: MARKER_OUTLINE_LAYER_ID, type: 'circle', source: MARKER_SOURCE_ID, paint: { 'circle-radius': 12, 'circle-color': '#FFFFFF', 'circle-stroke-width': 2, 'circle-stroke-color': '#007BFF', 'circle-opacity': 1 } });
       map.current.addLayer({ id: MARKER_FILL_LAYER_ID, type: 'circle', source: MARKER_SOURCE_ID, paint: { 'circle-radius': 10, 'circle-color': ['case', ['==', ['get', 'id'], hoveredPinId], '#007BFF', '#FFFFFF'], 'circle-opacity': 1 } });
-      
+
       map.current.addLayer({
         id: EMOJI_LAYER_ID,
         type: 'symbol',
@@ -540,7 +540,7 @@ export default function Map() {
           'text-ignore-placement': true
         }
       });
-      
+
       map.current.addSource(ARROW_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.current.addLayer({ id: ARROW_LAYER_ID, type: 'symbol', source: ARROW_SOURCE_ID, layout: { 'icon-image': 'triangle-15', 'icon-size': 1.5, 'icon-allow-overlap': true, 'icon-rotate': ['get', 'angle'], 'icon-anchor': 'center' }, paint: { 'icon-color': '#007BFF' } });
       map.current.addSource(ARC_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -689,9 +689,4 @@ export default function Map() {
       </div>
     </>
   );
-}
-
-// Dummy function to prevent errors if getDestinationPoint is not in mapUtils
-function getDestinationPoint(lng, lat, distance, direction) {
-  return [lng, lat];
 }
