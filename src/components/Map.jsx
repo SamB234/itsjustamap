@@ -198,7 +198,6 @@ const filterEmojis = {
 
 
 
-// In map.jsx
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
         console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
@@ -247,15 +246,18 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
     try {
         console.log('Fetching towns from Mapbox...');
         
-   const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?country=GB&proximity=${lng},${lat}&access_token=${mapboxgl.accessToken}`);
-    if (!townsResponse.ok) {
-    throw new Error(`Mapbox API request failed with status: ${townsResponse.status}`);
-}
-const townsData = await townsResponse.json();
+        // FIX: Use the correct reverse geocoding endpoint for Mapbox v5
+        const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?country=GB&types=place,locality,city&access_token=${mapboxgl.accessToken}`);
+        
+        if (!townsResponse.ok) {
+            throw new Error(`Mapbox API request failed with status: ${townsResponse.status}`);
+        }
+        
+        const townsData = await townsResponse.json();
 
         const townNames = townsData.features
             .map(feature => feature.text)
-            .filter((value, index, self) => self.indexOf(value) === index); // Remove duplicates
+            .filter((value, index, self) => self.indexOf(value) === index);
 
         if (townNames.length === 0) {
             const aiContentToDisplay = 'No major towns found near this area. Try a different location.';
@@ -270,23 +272,31 @@ const townsData = await townsResponse.json();
 
         console.log(`Found towns: ${townNames.join(', ')}`);
 
-        // The AI prompt is now more precise, including the direction.
-
-      const directionText = direction !== 'Overview' ? ` towards the ${directionMap[direction]}` : '';
-const prompt = `Given the following list of places: ${townNames.join(', ')}. The user is exploring${directionText} of ${placeName} with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for each place that fits the filters. Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Townsville**: A great spot for foodies.`;
-     
-      const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
+        const directionText = direction !== 'Overview' ? ` towards the ${directionMap[direction]}` : '';
+        const prompt = `Given the following list of places: ${townNames.join(', ')}. The user is exploring${directionText} of ${placeName} with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for each place that fits the filters. Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Townsville**: A great spot for foodies.`;
+        
+        const payload = {
+          contents: [{
+            parts: [{ text: prompt }]
+          }],
+          model: "gemini-2.5-flash-preview-05-20"
+        };
+        const apiKey = "";
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+        
+        const response = await fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt }),
+            body: JSON.stringify(payload)
         });
 
-        const responseText = await response.text();
-        if (!responseText) {
-            throw new Error('Server returned an empty response.');
+        const result = await response.json();
+        const aiGeneratedContent = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (!aiGeneratedContent) {
+            throw new Error('AI suggestion server returned an empty response.');
         }
 
-        const aiGeneratedContent = JSON.parse(responseText).suggestion;
         const lines = aiGeneratedContent.split('\n');
         const validLocations = [];
 
@@ -319,28 +329,21 @@ const prompt = `Given the following list of places: ${townNames.join(', ')}. The
             }
         }
 
-
-if (geocodedLocations.length > 0) {
-    setDroppedPins(prevPins => {
-        const aiPinIds = prevPins.filter(pin => pin.isAIGenerated).map(pin => pin.id);
-        const nonAiPins = prevPins.filter(pin => !pin.isAIGenerated);
-
-        const newPins = geocodedLocations.map(loc => ({
-            id: uuidv4(),
-            coords: loc.coords,
-            description: loc.description,
-            name: loc.name,
-            isAIGenerated: true,
-            emoji: activeFilters.length > 0 ? (filterEmojis[activeFilters[0]?.toLowerCase()] || '📌') : '📌',
-            filters: activeFilters,
-        }));
-        
-        return [...nonAiPins, ...newPins];
-    });
-}
-      
-        
-        else {
+        if (geocodedLocations.length > 0) {
+            setDroppedPins(prevPins => {
+                const nonAiPins = prevPins.filter(pin => !pin.isAIGenerated);
+                const newPins = geocodedLocations.map(loc => ({
+                    id: uuidv4(),
+                    coords: loc.coords,
+                    description: loc.description,
+                    name: loc.name,
+                    isAIGenerated: true,
+                    emoji: activeFilters.length > 0 ? (filterEmojis[activeFilters[0]?.toLowerCase()] || '📌') : '📌',
+                    filters: activeFilters,
+                }));
+                return [...nonAiPins, ...newPins];
+            });
+        } else {
             console.log('No suggestions found within the search area.');
         }
 
@@ -372,7 +375,7 @@ if (geocodedLocations.length > 0) {
             error: error.message,
         }));
     }
-}, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview]);
+}, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview, directionMap]);
 
   
 
