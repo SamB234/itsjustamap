@@ -224,9 +224,11 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
     try {
         console.log('Fetching towns from Mapbox...');
         
-        // FIX: The Mapbox query now searches for multiple place types (place, locality, city).
-        const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?country=GB&types=place,locality,city&proximity=${lng},${lat}&access_token=${mapboxgl.accessToken}`);
-        const townsData = await townsResponse.json();
+    const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?country=GB&types=place,locality,city&proximity=${lng},${lat}&access_token=${mapboxgl.accessToken}`);
+    if (!townsResponse.ok) {
+    throw new Error(`Mapbox API request failed with status: ${townsResponse.status}`);
+}
+const townsData = await townsResponse.json();
 
         const townNames = townsData.features
             .map(feature => feature.text)
@@ -337,7 +339,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             error: error.message,
         }));
     }
-}, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc]);
+}, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview]);
 
   
 
