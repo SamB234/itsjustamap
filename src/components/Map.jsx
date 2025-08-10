@@ -274,9 +274,9 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
         // Corrected call: Route the request through your backend proxy
         const directionText = direction !== 'Overview' ? ` towards the ${directionMap[direction]}` : '';
-        const prompt = `Given the following list of places: ${townNames.join(', ')}. The user is exploring${directionText} of ${placeName} with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for each place that fits the filters. Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Townsville**: A great spot for foodies.`;
-
-        const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
+const prompt = `Given the following location: ${placeName}. The user is exploring towards the East. They are looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for a place that fits the criteria, is not ${placeName} itself, and is within a reasonable distance (e.g., within 150km). Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Brighton**: A vibrant coastal city known for its beaches.`;
+   
+      const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt }),
