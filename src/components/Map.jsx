@@ -197,8 +197,8 @@ const filterEmojis = {
 
 
 
-
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
+    // Robustly check for valid coordinates before proceeding
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
         console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
         setActivePopupData(prev => ({
@@ -246,10 +246,13 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
     try {
         console.log('Fetching towns from Mapbox...');
         
-        // FIX: Use the correct reverse geocoding endpoint for Mapbox v5
-        const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?country=GB&types=place,locality,city&access_token=${mapboxgl.accessToken}`);
+        // Corrected FIX: Simplify the 'types' parameter to avoid the 422 error
+        const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?country=GB&types=place,locality&access_token=${mapboxgl.accessToken}`);
         
         if (!townsResponse.ok) {
+            // Log the full response to help diagnose the problem if it persists
+            const errorBody = await townsResponse.text();
+            console.error('Mapbox API Error Response:', errorBody);
             throw new Error(`Mapbox API request failed with status: ${townsResponse.status}`);
         }
         
