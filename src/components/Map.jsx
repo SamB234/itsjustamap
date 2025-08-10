@@ -158,6 +158,28 @@ export default function Map() {
 
 
 
+// Add this function to your map.jsx file
+const fetchGeneralOverview = useCallback(async (placeName) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `Give me a general overview of the place named ${placeName}.`,
+        }),
+      });
+      const data = await response.json();
+      return data.suggestion;
+    } catch (error) {
+      console.error('Error fetching general overview:', error);
+      return 'Could not fetch a general overview for this place.';
+    }
+  }, []);
+
+  
+
+
+  
 
 
 const filterEmojis = {
