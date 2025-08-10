@@ -187,8 +187,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }));
         return;
     }
-    
-    // Cache check and other logic remains the same
+
     const cacheKey = direction + '-' + activeFilters.sort().join(',');
     const currentPin = droppedPins.find(p => p.id === pinId);
     if (currentPin && currentPin.aiCache && currentPin.aiCache[cacheKey]) {
@@ -212,16 +211,17 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
     try {
         console.log('Fetching towns from Mapbox...');
-        const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/town.json?country=GB&proximity=${lng},${lat}&types=place&access_token=${mapboxgl.accessToken}`);
+        
+        // This is a broader search that finds all places (types=place) around the coordinates.
+        const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?country=GB&proximity=${lng},${lat}&access_token=${mapboxgl.accessToken}`);
         const townsData = await townsResponse.json();
 
-        // **FIX: We now get the raw list of towns from Mapbox and let the AI do the filtering.**
         const townNames = townsData.features
             .map(feature => feature.text)
             .filter((value, index, self) => self.indexOf(value) === index); // Remove duplicates
 
         if (townNames.length === 0) {
-            const aiContentToDisplay = 'No towns found within the search area. Try a larger radius.';
+            const aiContentToDisplay = 'No towns found near this area. Try a different location.';
             setActivePopupData(prev => ({
                 ...prev,
                 loading: false,
@@ -233,7 +233,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
         console.log(`Found towns: ${townNames.join(', ')}`);
 
-        // **FIX: The AI prompt is now more precise, including the direction.**
+        // The AI prompt is now more precise, including the direction.
         const prompt = `Given the following list of places: ${townNames.join(', ')}. The user is exploring towards the ${directionMap[direction]}. They are interested in a trip with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion of a place from the list and why it fits the filters and the general direction. Only include suggestions that are geographically plausible for the given direction. Format your response as a numbered list with each item starting with the place name in bold, followed by a colon and the description. For example: **Townsville**: A great spot for foodies.`;
         
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
@@ -265,9 +265,9 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(loc.name)}.json?country=GB&access_token=${mapboxgl.accessToken}`);
             const geocodingData = await geocodingResponse.json();
             
-            // **FIX: Re-introduce the isPointInArc check after geocoding, as a final check.**
             if (geocodingData.features && geocodingData.features.length > 0) {
                 const coordinates = geocodingData.features[0].center;
+                // Final check to ensure the suggested location is in the arc
                 if (isPointInArc(coordinates, [lng, lat], radius, direction)) {
                     geocodedLocations.push({
                         ...loc,
@@ -289,6 +289,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                     description: loc.description,
                     name: loc.name,
                     isAIGenerated: true,
+                    // Emoji fix from previous response
                     emoji: activeFilters.length > 0 ? (filterEmojis[activeFilters[0].toLowerCase()] || '📌') : '📌',
                     filters: activeFilters,
                 }));
