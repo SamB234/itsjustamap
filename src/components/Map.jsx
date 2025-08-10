@@ -165,8 +165,9 @@ const fetchGeneralOverview = useCallback(async (placeName) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: `Give me a general overview of the place named ${placeName}.`,
-        }),
+    prompt: `Provide a brief overview of interesting things to do or see in "${placeName}". Respond with a single paragraph of approximately 50 words.`,
+}),
+        
       });
       const data = await response.json();
       return data.suggestion;
@@ -246,7 +247,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
     try {
         console.log('Fetching towns from Mapbox...');
         
-    const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?country=GB&types=place,locality,city&proximity=${lng},${lat}&access_token=${mapboxgl.accessToken}`);
+   const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?country=GB&proximity=${lng},${lat}&access_token=${mapboxgl.accessToken}`);
     if (!townsResponse.ok) {
     throw new Error(`Mapbox API request failed with status: ${townsResponse.status}`);
 }
