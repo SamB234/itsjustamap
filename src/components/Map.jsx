@@ -3,8 +3,6 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { v4 as uuidv4 } from 'uuid';
 import ReactMarkdown from 'react-markdown';
-import Sidebar from './Sidebar';
-import ArrowPin from './ArrowPin';
 import { getArcPoints, getCurvedLinePoints, getDestinationPoint, getCurvedArc, isPointInArc } from './mapUtils';
 
 // =========================================================================
@@ -38,6 +36,89 @@ const ARC_FILL_LAYER_ID = 'arc-fill-layer';
 const CONNECTION_SOURCE_ID = 'connection-source';
 const CONNECTION_LAYER_ID = 'connection-layer';
 const EMOJI_LAYER_ID = 'emoji-layer';
+
+// =========================================================================
+// COMPONENT DEFINITIONS
+// =========================================================================
+
+// A simple, visible ArrowPin component
+const ArrowPin = ({ onClick }) => (
+  <button
+    onClick={onClick}
+    className="bg-blue-500 text-white p-4 rounded-full shadow-lg transition-transform transform hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75"
+    aria-label="Drop pin"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-6 w-6"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+      />
+    </svg>
+  </button>
+);
+
+// Sidebar component, based on the user's snippet
+const Sidebar = ({ isOpen, onClose, filterOptions, activeFilters, pendingFilters, onFilterToggle, onApplyFilters, children }) => (
+  <div
+    className={`fixed top-0 left-0 h-full w-64 bg-gray-100 shadow-xl transform transition-transform duration-300 ease-in-out z-20 ${
+      isOpen ? 'translate-x-0' : '-translate-x-full'
+    }`}
+  >
+    <div className="p-4 flex flex-col h-full">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold">Trip Planner</h2>
+        <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        <h3 className="font-semibold text-lg mb-2">Filters</h3>
+        <div className="space-y-2 mb-4">
+          {filterOptions.map((filter) => (
+            <div key={filter} className="flex items-center">
+              <input
+                type="checkbox"
+                id={`filter-${filter}`}
+                checked={pendingFilters.includes(filter)}
+                onChange={() => onFilterToggle(filter)}
+                className="rounded text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor={`filter-${filter}`} className="ml-2 text-gray-700 capitalize">{filter}</label>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={onApplyFilters}
+          className="w-full bg-blue-500 text-white rounded-lg py-2 px-4 hover:bg-blue-600 transition-colors"
+        >
+          Apply Filters
+        </button>
+        <div className="mt-6 p-3 bg-white rounded-lg shadow-inner">
+          <h3 className="font-semibold mb-2">Trip Connections</h3>
+          <p className="text-sm text-gray-600">Manage connections between your markers.</p>
+        </div>
+        {children}
+      </div>
+    </div>
+  </div>
+);
+
 
 // =========================================================================
 // MAIN MAP COMPONENT
