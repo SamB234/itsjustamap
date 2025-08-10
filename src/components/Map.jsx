@@ -198,7 +198,6 @@ const filterEmojis = {
 
 
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
-    // Robustly check for valid coordinates before proceeding
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
         console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
         setActivePopupData(prev => ({
@@ -246,11 +245,9 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
     try {
         console.log('Fetching towns from Mapbox...');
         
-        // Corrected FIX: Simplify the 'types' parameter to avoid the 422 error
         const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?country=GB&types=place,locality&access_token=${mapboxgl.accessToken}`);
         
         if (!townsResponse.ok) {
-            // Log the full response to help diagnose the problem if it persists
             const errorBody = await townsResponse.text();
             console.error('Mapbox API Error Response:', errorBody);
             throw new Error(`Mapbox API request failed with status: ${townsResponse.status}`);
@@ -275,26 +272,18 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
         console.log(`Found towns: ${townNames.join(', ')}`);
 
+        // Corrected call: Route the request through your backend proxy
         const directionText = direction !== 'Overview' ? ` towards the ${directionMap[direction]}` : '';
         const prompt = `Given the following list of places: ${townNames.join(', ')}. The user is exploring${directionText} of ${placeName} with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for each place that fits the filters. Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Townsville**: A great spot for foodies.`;
-        
-        const payload = {
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          model: "gemini-2.5-flash-preview-05-20"
-        };
-        const apiKey = "";
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-        
-        const response = await fetch(apiUrl, {
+
+        const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ prompt }),
         });
 
         const result = await response.json();
-        const aiGeneratedContent = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+        const aiGeneratedContent = result?.suggestion; // Access the 'suggestion' field from the backend response
         
         if (!aiGeneratedContent) {
             throw new Error('AI suggestion server returned an empty response.');
@@ -379,6 +368,8 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }));
     }
 }, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview, directionMap]);
+
+  
 
   
 
