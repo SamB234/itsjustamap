@@ -198,6 +198,7 @@ const filterEmojis = {
 
 
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
+    // 1. Validate coordinates
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
         console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
         setActivePopupData(prev => ({
@@ -209,6 +210,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         return;
     }
 
+    // 2. Handle overview direction
     if (direction === 'Overview') {
         const overview = await fetchGeneralOverview(placeName);
         setActivePopupData(prev => ({
@@ -221,6 +223,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         return;
     }
 
+    // 3. Handle caching
     const cacheKey = direction + '-' + activeFilters.sort().join(',');
     const currentPin = droppedPins.find(p => p.id === pinId);
     if (currentPin && currentPin.aiCache && currentPin.aiCache[cacheKey]) {
@@ -234,6 +237,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         return;
     }
 
+    // 4. Set loading state
     setActivePopupData(prev => ({
         ...prev,
         loading: true,
@@ -245,6 +249,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
     try {
         console.log('Fetching towns from Mapbox...');
         
+        // 5. Fetch towns from Mapbox
         const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?country=GB&types=place,locality&access_token=${mapboxgl.accessToken}`);
         
         if (!townsResponse.ok) {
@@ -272,7 +277,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
         console.log(`Found towns: ${townNames.join(', ')}`);
 
-        // Corrected call: Route the request through your backend proxy
+        // 6. Define AI prompt and fetch suggestion from your backend
         const directionText = direction !== 'Overview' ? ` towards the ${directionMap[direction]}` : '';
         const prompt = `Given the following location: ${placeName}. The user is exploring towards the East. They are looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for a place that fits the criteria, is not ${placeName} itself, and is within a reasonable distance (e.g., within 150km). Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Brighton**: A vibrant coastal city known for its beaches.`;
     
@@ -301,6 +306,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             }
         }
         
+        // 7. Geocode suggested locations and check if they're in the search area
         const geocodedLocations = [];
         for (const loc of validLocations) {
             const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(loc.name)}.json?country=GB&access_token=${mapboxgl.accessToken}`);
@@ -317,21 +323,19 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                     console.warn(`AI suggested '${loc.name}', but it's outside the arc and will not be displayed.`);
                 }
             } else {
-                console.warn(`Could could not find coordinates for: ${loc.name}`);
+                console.warn(`Could not find coordinates for: ${loc.name}`);
             }
         }
 
+        // 8. Add the new pins to the map
         if (geocodedLocations.length > 0) {
-            // **New Line for debugging:** See what your active filters are
-            console.log('Active Filters:', activeFilters);
+            console.log('Active Filters:', activeFilters); // Debugging line for active filters
 
             setDroppedPins(prevPins => {
                 const nonAiPins = prevPins.filter(pin => !pin.isAIGenerated);
                 const newPins = geocodedLocations.map(loc => {
                     const filterKey = activeFilters[0]?.toLowerCase();
-                    // Get the emoji, defaulting to '📌' if the key isn't found
                     const emojiToUse = filterEmojis[filterKey] || '📌';
-
                     return {
                         id: uuidv4(),
                         coords: loc.coords,
@@ -348,6 +352,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             console.log('No suggestions found within the search area.');
         }
 
+        // 9. Update the UI with the final AI content
         const aiContentToDisplay = geocodedLocations.length > 0
             ? 'Based on the towns found within the search area, here are a few suggestions:\n' + geocodedLocations.map(loc => `**${loc.name}**: ${loc.description}`).join('\n')
             : 'No suggestions found within the search area.';
