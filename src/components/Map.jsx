@@ -247,7 +247,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
     try {
         console.log('Fetching towns from Mapbox...');
         
-   const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?country=GB&types=region,place&proximity=${lng},${lat}&access_token=${mapboxgl.accessToken}`);
+   const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?country=GB&proximity=${lng},${lat}&access_token=${mapboxgl.accessToken}`);
     if (!townsResponse.ok) {
     throw new Error(`Mapbox API request failed with status: ${townsResponse.status}`);
 }
@@ -271,9 +271,10 @@ const townsData = await townsResponse.json();
         console.log(`Found towns: ${townNames.join(', ')}`);
 
         // The AI prompt is now more precise, including the direction.
-const directionText = direction !== 'Overview' ? ` towards the ${directionMap[direction]}` : '';
-const prompt = `Given the following list of places: ${townNames.join(', ')}. The user is exploring${directionText} of ${placeName}, within a radius of ${radius}km. They are interested in a trip with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion of a place from the list and why it fits the filters and the general direction. Only include suggestions that are geographically plausible for the given direction and radius. Format your response as a numbered list with each item starting with the place name in bold, followed by a colon and the description. For example: **Townsville**: A great spot for foodies.`;        
-    
+
+      const directionText = direction !== 'Overview' ? ` towards the ${directionMap[direction]}` : '';
+const prompt = `Given the following list of places: ${townNames.join(', ')}. The user is exploring${directionText} of ${placeName} with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for each place that fits the filters. Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Townsville**: A great spot for foodies.`;
+     
       const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
