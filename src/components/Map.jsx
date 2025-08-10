@@ -188,6 +188,7 @@ const filterEmojis = {
   'nightlife': '🌃'
 };
 
+
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
     // 1. Validate coordinates
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
@@ -236,10 +237,13 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         error: null,
         radius: direction === 'Overview' ? null : radius,
     }));
+    
+    // Log the radius to confirm the value is being used correctly
+    console.log(`Using radius: ${radius} km`);
 
     try {
         console.log('Fetching towns from Mapbox...');
-        
+
         // 5. Fetch towns from Mapbox
         const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?country=GB&types=place,locality&access_token=${mapboxgl.accessToken}`);
         
@@ -270,7 +274,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
         // 6. Define AI prompt and fetch suggestion from your backend
         const directionText = direction !== 'Overview' ? ` towards the ${directionMap[direction]}` : '';
-        const prompt = `Given the following location: ${placeName}. The user is exploring towards the East. They are looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for a place that fits the criteria, is not ${placeName} itself, and is within a reasonable distance (e.g., within 150km). Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Brighton**: A vibrant coastal city known for its beaches.`;
+        const prompt = `Given the following location: ${placeName}. The user is exploring towards the East. They are looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for a place that fits the criteria, is not ${placeName} itself, and is within a reasonable distance (e.g., within ${radius}km). Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Brighton**: A vibrant coastal city known for its beaches.`;
     
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
@@ -326,7 +330,8 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             setDroppedPins(prevPins => {
                 const nonAiPins = prevPins.filter(pin => !pin.isAIGenerated);
                 const newPins = geocodedLocations.map(loc => {
-                    const filterKey = activeFilters[0]?.toLowerCase();
+                    // Corrected emoji logic to safely access the active filter
+                    const filterKey = activeFilters.length > 0 ? activeFilters[0].toLowerCase() : null;
                     const emojiToUse = filterEmojis[filterKey] || '📌';
                     return {
                         id: uuidv4(),
@@ -373,7 +378,10 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             error: error.message,
         }));
     }
-}, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview, directionMap]);
+}, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, getDistance, fetchGeneralOverview, directionMap]);
+
+
+  
   
 
   
