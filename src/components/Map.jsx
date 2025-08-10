@@ -173,7 +173,9 @@ const filterEmojis = {
 
 
 
- // From map.jsx
+
+
+// In map.jsx
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
         console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
@@ -186,7 +188,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         return;
     }
 
-    // New: Check if this is a general overview request
     if (direction === 'Overview') {
         const overview = await fetchGeneralOverview(placeName);
         setActivePopupData(prev => ({
@@ -220,10 +221,11 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         radius: direction === 'Overview' ? null : radius,
     }));
 
-    // New logic to find towns and pass them to the AI
     try {
         console.log('Fetching towns from Mapbox...');
-        const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?country=GB&proximity=${lng},${lat}&access_token=${mapboxgl.accessToken}`);
+        
+        // FIX: The Mapbox query now searches for multiple place types (place, locality, city).
+        const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?country=GB&types=place,locality,city&proximity=${lng},${lat}&access_token=${mapboxgl.accessToken}`);
         const townsData = await townsResponse.json();
 
         const townNames = townsData.features
@@ -231,7 +233,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             .filter((value, index, self) => self.indexOf(value) === index); // Remove duplicates
 
         if (townNames.length === 0) {
-            const aiContentToDisplay = 'No towns found near this area. Try a different location.';
+            const aiContentToDisplay = 'No major towns found near this area. Try a different location.';
             setActivePopupData(prev => ({
                 ...prev,
                 loading: false,
@@ -243,9 +245,9 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
         console.log(`Found towns: ${townNames.join(', ')}`);
 
+        // The AI prompt is now more precise, including the direction.
         const prompt = `Given the following list of places: ${townNames.join(', ')}. The user is exploring towards the ${directionMap[direction]} of ${placeName}, within a radius of ${radius}km. They are interested in a trip with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion of a place from the list and why it fits the filters and the general direction. Only include suggestions that are geographically plausible for the given direction and radius. Format your response as a numbered list with each item starting with the place name in bold, followed by a colon and the description. For example: **Townsville**: A great spot for foodies.`;
-
-        // Send the complete prompt to the backend
+        
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -277,7 +279,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             
             if (geocodingData.features && geocodingData.features.length > 0) {
                 const coordinates = geocodingData.features[0].center;
-                // Final check to ensure the suggested location is in the arc
                 if (isPointInArc(coordinates, [lng, lat], radius, direction)) {
                     geocodedLocations.push({
                         ...loc,
@@ -299,7 +300,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                     description: loc.description,
                     name: loc.name,
                     isAIGenerated: true,
-                    // Emoji fix
                     emoji: activeFilters.length > 0 ? (filterEmojis[activeFilters[0].toLowerCase()] || '📌') : '📌',
                     filters: activeFilters,
                 }));
@@ -338,6 +338,8 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }));
     }
 }, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc]);
+
+  
 
   
 
