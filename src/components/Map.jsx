@@ -329,9 +329,15 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             setDroppedPins(prevPins => {
                 const nonAiPins = prevPins.filter(pin => !pin.isAIGenerated);
                 const newPins = geocodedLocations.map(loc => {
-                    // Corrected emoji logic to safely access the active filter
-                    const filterKey = activeFilters.length > 0 ? activeFilters[0].toLowerCase() : null;
-                    const emojiToUse = filterEmojis[filterKey] || '📌';
+                    // Corrected emoji logic to find the first matching emoji from the active filters
+                    let emojiToUse = '📌';
+                    if (Array.isArray(activeFilters) && activeFilters.length > 0) {
+                        const foundEmoji = activeFilters.find(filter => filterEmojis[filter.toLowerCase()]);
+                        if (foundEmoji) {
+                            emojiToUse = filterEmojis[foundEmoji.toLowerCase()];
+                        }
+                    }
+
                     return {
                         id: uuidv4(),
                         coords: loc.coords,
@@ -378,7 +384,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }));
     }
 }, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, getDistance, fetchGeneralOverview, directionMap]);
-
   
   
 
