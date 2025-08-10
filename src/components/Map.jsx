@@ -247,7 +247,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
     try {
         console.log('Fetching towns from Mapbox...');
         
-   const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?country=GB&proximity=${lng},${lat}&access_token=${mapboxgl.accessToken}`);
+   const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?country=GB&types=region,place&proximity=${lng},${lat}&access_token=${mapboxgl.accessToken}`);
     if (!townsResponse.ok) {
     throw new Error(`Mapbox API request failed with status: ${townsResponse.status}`);
 }
@@ -330,7 +330,7 @@ if (geocodedLocations.length > 0) {
             description: loc.description,
             name: loc.name,
             isAIGenerated: true,
-            emoji: activeFilters.length > 0 ? (filterEmojis[activeFilters[0].toLowerCase()] || '📌') : '📌',
+            emoji: activeFilters.length > 0 ? (filterEmojis[activeFilters[0]?.toLowerCase()] || '📌') : '📌',
             filters: activeFilters,
         }));
         
