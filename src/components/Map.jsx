@@ -273,8 +273,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         console.log(`Found towns: ${townNames.join(', ')}`);
 
         // 6. Define AI prompt and fetch suggestion from your backend
-        const directionText = direction !== 'Overview' ? ` towards the ${directionMap[direction]}` : '';
-        const prompt = `Given the following location: ${placeName}. The user is exploring towards the East. They are looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for a place that fits the criteria, is not ${placeName} itself, and is within a reasonable distance (e.g., within ${radius}km). Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Brighton**: A vibrant coastal city known for its beaches.`;
+        const prompt = `Given the following location: ${placeName}. The user is exploring towards the ${direction}. They are looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for a place that fits the criteria, is not ${placeName} itself, and is within a reasonable distance (e.g., within ${radius}km). Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Brighton**: A vibrant coastal city known for its beaches.`;
     
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
@@ -379,7 +378,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }));
     }
 }, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, getDistance, fetchGeneralOverview, directionMap]);
-
 
   
   
