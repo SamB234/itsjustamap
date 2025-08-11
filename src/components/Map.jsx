@@ -309,7 +309,8 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
         // Step 2: Extract the town names to send to the AI
         const townNames = relevantTowns.map(town => town.text);
-        console.log("Step 2: Towns to send to AI:", townNames);
+        console.log("Step 2: Towns to send to AI:", JSON.stringify(townNames));
+
 
         // Step 3: Send the towns and filters directly to the backend.
         console.log("Step 3: Sending town names and filters to AI service...");
