@@ -204,8 +204,9 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
         }
         const bboxString = bbox.join(',');
 
+        // Broaden the search by including a wider range of administrative boundaries.
         // We'll also specify place_types in the Mapbox API call to get better results from the start.
-        const placeTypes = 'place,locality,region,postcode';
+        const placeTypes = 'place,locality,neighborhood,region,district,postcode,county';
         const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?bbox=${bboxString}&access_token=${mapboxgl.accessToken}&limit=20&types=${placeTypes}`);
 
         if (!response.ok) {
