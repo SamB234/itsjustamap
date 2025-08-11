@@ -150,7 +150,7 @@ export function getArcPoints(center, radiusKm, direction, sweepAngle = 90, numSe
     return points;
 }
 
-// NEW FUNCTION: Calculates a bounding box for a given center, radius, and direction.
+// **UPDATED** Calculates a bounding box for a given center, radius, and direction.
 /**
  * Calculates a bounding box [minLng, minLat, maxLng, maxLat] for the search arc.
  * @param {[number, number]} center [longitude, latitude]
@@ -159,61 +159,63 @@ export function getArcPoints(center, radiusKm, direction, sweepAngle = 90, numSe
  * @returns {Array<number>|null} The bounding box or null if the direction is invalid.
  */
 export function getArcBoundingBox(center, radiusKm, direction) {
-    const directionBearings = {
-        'N': 0, 'North': 0,
-        'E': 90, 'East': 90,
-        'S': 180, 'South': 180,
-        'W': 270, 'West': 270,
-    };
-    const centerBearing = directionBearings[direction];
-
-    if (centerBearing === undefined) {
-        console.error("Invalid direction provided:", direction);
-        return null;
+  const getDirectionBearing = (dir) => {
+    switch (dir.toLowerCase()) {
+      case 'north': return [315, 45];
+      case 'east': return [45, 135];
+      case 'south': return [135, 225];
+      case 'west': return [225, 315];
+      default: return [0, 360]; // Overview
     }
+  };
+  
+  const [minBearing, maxBearing] = getDirectionBearing(direction);
+  const R = 6371; // Earth's radius in km
 
-    const points = [];
-    const sweepAngle = 90; // The arc is a 90-degree segment
+  const calculateNewPoint = (bearing) => {
+    const latRad = toRadians(center[1]);
+    const lonRad = toRadians(center[0]);
+    const bearingRad = toRadians(bearing);
 
-    const arcStartBearing = (centerBearing - sweepAngle / 2 + 360) % 360;
-    const arcEndBearing = (centerBearing + sweepAngle / 2 + 360) % 360;
+    const lat2 = Math.asin(Math.sin(latRad) * Math.cos(radiusKm / R) + Math.cos(latRad) * Math.sin(radiusKm / R) * Math.cos(bearingRad));
+    const lon2 = lonRad + Math.atan2(
+      Math.sin(bearingRad) * Math.sin(radiusKm / R) * Math.cos(latRad),
+      Math.cos(radiusKm / R) - Math.sin(latRad) * Math.sin(lat2)
+    );
 
-    // Get points at the start, end, and center of the arc
-    points.push(getPointAtDistanceBearing(center, radiusKm, arcStartBearing));
-    points.push(getPointAtDistanceBearing(center, radiusKm, arcEndBearing));
-    points.push(center);
+    return [toDegrees(lon2), toDegrees(lat2)];
+  };
 
-    // Also include points at the cardinal directions if they are within the arc
-    const cardinalBearings = [0, 90, 180, 270];
-    for (const bearing of cardinalBearings) {
-        if (isBearingInArc(bearing, arcStartBearing, arcEndBearing)) {
-            points.push(getPointAtDistanceBearing(center, radiusKm, bearing));
-        }
-    }
-
-    // Now calculate the min/max coordinates from all collected points
-    let minLng = Infinity;
-    let minLat = Infinity;
-    let maxLng = -Infinity;
-    let maxLat = -Infinity;
-
-    for (const p of points) {
-        minLng = Math.min(minLng, p[0]);
-        minLat = Math.min(minLat, p[1]);
-        maxLng = Math.max(maxLng, p[0]);
-        maxLat = Math.max(maxLat, p[1]);
-    }
-
-    return [minLng, minLat, maxLng, maxLat];
-}
+  const point1 = calculateNewPoint(minBearing);
+  const point2 = calculateNewPoint(maxBearing);
+  
+  // Create an array of potential points to get an accurate bounding box
+  const points = [
+    { latitude: center[1], longitude: center[0] },
+    { latitude: point1[1], longitude: point1[0] },
+    { latitude: point2[1], longitude: point2[0] }
+  ];
+  
+  let latMin = Infinity, latMax = -Infinity, lonMin = Infinity, lonMax = -Infinity;
+  for (const p of points) {
+    latMin = Math.min(latMin, p.latitude);
+    latMax = Math.max(latMax, p.latitude);
+    lonMin = Math.min(lonMin, p.longitude);
+    lonMax = Math.max(lonMax, p.longitude);
+  }
+  
+  // Add a small buffer to the bounding box
+  const buffer = 0.05;
+  return [lonMin - buffer, latMin - buffer, lonMax + buffer, latMax + buffer];
+};
 
 function isBearingInArc(bearing, startBearing, endBearing) {
-    if (startBearing > endBearing) {
-        // Handles cases where the arc crosses the 0/360 degree line (e.g., North)
-        return bearing >= startBearing || bearing <= endBearing;
-    } else {
-        return bearing >= startBearing && bearing <= endBearing;
-    }
+    if (startBearing > endBearing) {
+        // Handles cases where the arc crosses the 0/360 degree line (e.g., North)
+        return bearing >= startBearing || bearing <= endBearing;
+    } else {
+        return bearing >= startBearing && bearing <= endBearing;
+    }
 }
 
 
@@ -328,52 +330,46 @@ export function getCurvedLinePoints(startCoords, endCoords, numPoints = 50, offs
     return points;
 }
 
-// KEY UPDATE: New filtering logic to create a more forgiving arc near the origin.
+
+// **UPDATED** Checks if a point is within the arc defined by a center, radius, and direction.
 /**
  * Checks if a point is within the arc defined by a center, radius, and direction.
  * @param {[number, number]} point [longitude, latitude]
  * @param {[number, number]} center [longitude, latitude]
  * @param {number} radiusKm Radius of the arc in kilometers
  * @param {string} direction 'N', 'S', 'E', 'W' OR 'North', 'South', 'East', 'West'
- * @param {number} [sweepAngle=90] The total angle covered by the arc
  * @returns {boolean} True if the point is within the arc, false otherwise
  */
-export function isPointInArc(point, center, radiusKm, direction, sweepAngle = 90) {
-    // Step 1: Check if the point is within the radius.
-    const distance = getDistance(center, point);
-    if (distance > radiusKm) {
-        return false;
+export function isPointInArc(point, center, radiusKm, direction) {
+  // 1. Check if the point is within the radius.
+  const distance = getDistance(center, point);
+  if (distance > radiusKm) {
+    return false;
+  }
+
+  // 2. Check if the point's bearing is within the arc's angular range.
+  const bearing = getBearing(center, point);
+  
+  const getDirectionBearing = (dir) => {
+    switch (dir.toLowerCase()) {
+      case 'north': return [315, 45];
+      case 'east': return [45, 135];
+      case 'south': return [135, 225];
+      case 'west': return [225, 315];
+      default: return [0, 360]; // Overview
     }
+  };
+  
+  const [minBearing, maxBearing] = getDirectionBearing(direction);
 
-    // Step 2: Check if the point's bearing is within the arc's angular range.
-    const directionMap = {
-        'N': 'N', 'North': 'N',
-        'E': 'E', 'East': 'E',
-        'S': 'S', 'South': 'S',
-        'W': 'W', 'West': 'W',
-    };
-    const normalizedDirection = directionMap[direction];
+  if (direction.toLowerCase() === 'overview') {
+    return true;
+  }
 
-    let arcCenterBearing;
-    switch (normalizedDirection) {
-        case 'N': arcCenterBearing = 0; break;
-        case 'E': arcCenterBearing = 90; break;
-        case 'S': arcCenterBearing = 180; break;
-        case 'W': arcCenterBearing = 270; break;
-        default: return false; // Invalid direction
-    }
-    
-    // Define the bearing range of the arc
-    const startBearing = (arcCenterBearing - sweepAngle / 2 + 360) % 360;
-    const endBearing = (arcCenterBearing + sweepAngle / 2) % 360;
-
-    // Get the bearing of the point from the center
-    const pointBearing = getBearing(center, point);
-
-    // This handles the special case where the arc crosses the 0/360 degree line (e.g., North)
-    if (startBearing > endBearing) {
-        return pointBearing >= startBearing || pointBearing <= endBearing;
-    } else {
-        return pointBearing >= startBearing && pointBearing <= endBearing;
-    }
+  // Handle bearing wrapping around 360/0 degrees
+  if (minBearing > maxBearing) { // e.g., North [315, 45]
+    return bearing >= minBearing || bearing <= maxBearing;
+  } else { // e.g., East [45, 135]
+    return bearing >= minBearing && bearing <= maxBearing;
+  }
 }
