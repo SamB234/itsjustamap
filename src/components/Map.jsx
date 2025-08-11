@@ -294,7 +294,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         const townNames = relevantTowns.map(town => town.text);
 
         // Step 3: Define a new, more precise AI prompt
-        const prompt = `Given the following list of places that are geographically located near the central point: ${townNames.join(', ')}. The user is looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise and creative description for each place in the list that is relevant to the filters. Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Do not add any places not on the list. Example: **Brighton**: A vibrant coastal city known for its beaches and nightlife.`;
+        const prompt = `Given the following list of places that are geographically located near the central point: ${townNames.join(', ')}. The user is looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise and creative description for each place in the list that is relevant to the filters. Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Do not add any places not on the list. For example: **Brighton**: A vibrant coastal city known for its beaches and nightlife.`;
 
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
@@ -308,19 +308,34 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         if (!aiGeneratedContent) {
             throw new Error('AI suggestion server returned an empty response.');
         }
-
-        const lines = aiGeneratedContent.split('\n');
+        
+        // **UPDATED** Step 4: Add more robust parsing logic
+        const lines = aiGeneratedContent.split('\n').filter(line => line.trim() !== ''); // Filter out empty lines
         const aiDescriptions = {};
         for (const line of lines) {
-            const match = line.match(/\*\*(.*?)\*\*\s*:\s*(.*)/);
+            // Regex to match bolded text followed by a colon and a description
+            const match = line.match(/^\s*\d*\.?\s*\*\*(.*?)\*\*\s*:\s*(.*)/);
             if (match) {
                 const place = match[1].trim();
                 const description = match[2].trim();
-                aiDescriptions[place] = description;
+                // Ensure the AI actually provided a name from our list
+                if (townNames.includes(place)) {
+                    aiDescriptions[place] = description;
+                }
+            } else {
+                // Fallback for cases where the AI doesn't use bolding
+                const fallbackMatch = line.match(/^\s*\d*\.?\s*(.*?)\s*:\s*(.*)/);
+                if (fallbackMatch) {
+                    const place = fallbackMatch[1].trim();
+                    const description = fallbackMatch[2].trim();
+                    if (townNames.includes(place)) {
+                        aiDescriptions[place] = description;
+                    }
+                }
             }
         }
 
-        // Step 4: Add the new pins to the map, using the geocoded coordinates from the initial Mapbox search
+        // Step 5: Add the new pins to the map, using the geocoded coordinates from the initial Mapbox search
         const finalPins = relevantTowns
             .filter(town => aiDescriptions[town.text]) // Only keep towns that the AI provided a description for
             .map(town => {
@@ -352,7 +367,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             console.log('AI did not provide descriptions for the relevant towns.');
         }
 
-        // 5. Update the UI with the final AI content
+        // 6. Update the UI with the final AI content
         const aiContentToDisplay = finalPins.length > 0
             ? 'Based on the towns found within the search area, here are a few suggestions:\n' + finalPins.map(pin => `**${pin.name}**: ${pin.description}`).join('\n')
             : 'No suggestions found within the search area.';
