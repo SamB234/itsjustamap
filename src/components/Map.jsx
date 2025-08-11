@@ -194,13 +194,6 @@ const filterEmojis = {
 
 
 
-
-  
-  
-
-
-// A new function to perform a geospatial search for towns within the radius and direction.
-// This new version has been rewritten to be more robust.
 const fetchRelevantTowns = async (center, radiusKm, direction) => {
     try {
         console.log(`[Mapbox] Searching for towns... Center: ${center}, Radius: ${radiusKm}km, Direction: ${direction}`);
@@ -211,7 +204,9 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
         }
         const bboxString = bbox.join(',');
 
-        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?bbox=${bboxString}&access_token=${mapboxgl.accessToken}&limit=20`);
+        // We'll also specify place_types in the Mapbox API call to get better results from the start.
+        const placeTypes = 'place,locality,region,postcode';
+        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?bbox=${bboxString}&access_token=${mapboxgl.accessToken}&limit=20&types=${placeTypes}`);
 
         if (!response.ok) {
             throw new Error(`[Mapbox] API request failed with status: ${response.status}`);
@@ -221,12 +216,18 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
         const features = data.features || [];
         console.log(`[Mapbox] Found ${features.length} features within bounding box.`);
 
-        // Filter the towns to only include those within the specified arc
+        // Filter the towns to only include those with relevant place_type and within the arc
         const relevantTowns = features.filter(feature => {
             const featureCoords = feature.center;
-            return isPointInArc(featureCoords, center, radiusKm, direction);
+            // Check if place_type contains 'place', 'locality', or 'town' to ensure we get towns/cities
+            const isTownOrCity = feature.place_type.some(type => ['place', 'locality', 'town'].includes(type));
+            
+            // Check if the feature is within the search arc
+            const isInArc = isPointInArc(featureCoords, center, radiusKm, direction);
+            
+            return isTownOrCity && isInArc;
         });
-
+        
         console.log(`[Mapbox] Filtered to ${relevantTowns.length} towns within the arc.`);
         return relevantTowns;
     } catch (error) {
@@ -235,6 +236,8 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
     }
 };
 
+
+  
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
     console.log("--- Starting AI Suggestion Fetch ---");
     console.log(`Pin ID: ${pinId}, Location: ${placeName}, Direction: ${direction}, Coords: [${lng}, ${lat}], Radius: ${radius}, Filters: ${activeFilters}`);
