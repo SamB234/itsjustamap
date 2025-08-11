@@ -194,6 +194,10 @@ const filterEmojis = {
 
 
 
+
+  
+  
+
 // A new function to perform a geospatial search for towns within the radius and direction.
 const fetchRelevantTowns = async (center, radiusKm, direction) => {
     try {
@@ -225,9 +229,6 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
         return [];
     }
 };
-
-
-
 
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
     console.log("--- Starting AI Suggestion Fetch ---");
@@ -305,14 +306,14 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         const townNames = relevantTowns.map(town => town.text);
         console.log("Step 2: Towns to send to AI:", townNames);
 
-        // Step 3: Define AI prompt for JSON response
-        const prompt = `Given the following list of places that are geographically located near the central point: ${townNames.join(', ')}. The user is looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise and creative description for each place in the list that is relevant to the filters. Respond ONLY with a JSON object. The keys of the object should be the place names and the values should be the descriptions. Do not add any places not on the list. Example: {"Brighton": "A vibrant coastal city known for its beaches and nightlife."}`;
-
-        console.log("Step 3: Sending prompt to AI service...");
+        // **CRUCIAL CHANGE**
+        // Step 3: Send the towns and filters directly to the backend. The backend will now construct the prompt.
+        console.log("Step 3: Sending town names and filters to AI service...");
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt }),
+            // The request body now sends an object with `townNames` and `activeFilters`.
+            body: JSON.stringify({ townNames, activeFilters }),
         });
 
         if (!response.ok) {
@@ -436,10 +437,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }));
     }
 }, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview, fetchRelevantTowns]);
-  
-  
-
-
   
 
   
