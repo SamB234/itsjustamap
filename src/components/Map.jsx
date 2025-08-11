@@ -226,6 +226,9 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
     }
 };
 
+
+
+
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
     // 1. Validate coordinates
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
@@ -312,10 +315,12 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         let aiDescriptions = {};
         let aiContentToDisplay = '';
 
-        // **UPDATED** Step 4: Add more robust parsing logic.
+        // **UPDATED** Step 4: Clean the AI's response by removing markdown code block.
+        let cleanedContent = aiGeneratedContent.replace(/```json\s*|```/g, '').trim();
+
         try {
             // Attempt to parse the AI's response as a JSON object first.
-            aiDescriptions = JSON.parse(aiGeneratedContent);
+            aiDescriptions = JSON.parse(cleanedContent);
             aiContentToDisplay = 'Based on the towns found within the search area, here are a few suggestions:\n' + Object.entries(aiDescriptions).map(([name, description]) => `**${name}**: ${description}`).join('\n');
         } catch (jsonError) {
             console.warn("AI response was not valid JSON. Falling back to text parsing.", jsonError);
@@ -409,7 +414,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }));
     }
 }, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview]);
-
+  
   
 
 
