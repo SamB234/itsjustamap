@@ -159,48 +159,61 @@ export function getArcPoints(center, radiusKm, direction, sweepAngle = 90, numSe
  * @returns {Array<number>|null} The bounding box or null if the direction is invalid.
  */
 export function getArcBoundingBox(center, radiusKm, direction) {
-    const directionMap = {
-        'North': 'N',
-        'East': 'E',
-        'South': 'S',
-        'West': 'W',
+    const directionBearings = {
+        'N': 0, 'North': 0,
+        'E': 90, 'East': 90,
+        'S': 180, 'South': 180,
+        'W': 270, 'West': 270,
     };
-    const normalizedDirection = directionMap[direction];
+    const centerBearing = directionBearings[direction];
 
-    if (!normalizedDirection) {
+    if (centerBearing === undefined) {
+        console.error("Invalid direction provided:", direction);
         return null;
     }
 
-    // Get the corners of the bounding box based on the center and radius
-    const p1 = getPointAtDistanceBearing(center, radiusKm, 0); // North
-    const p2 = getPointAtDistanceBearing(center, radiusKm, 90); // East
-    const p3 = getPointAtDistanceBearing(center, radiusKm, 180); // South
-    const p4 = getPointAtDistanceBearing(center, radiusKm, 270); // West
+    const points = [];
+    const sweepAngle = 90; // The arc is a 90-degree segment
 
-    let minLng = Math.min(p1[0], p2[0], p3[0], p4[0]);
-    let minLat = Math.min(p1[1], p2[1], p3[1], p4[1]);
-    let maxLng = Math.max(p1[0], p2[0], p3[0], p4[0]);
-    let maxLat = Math.max(p1[1], p2[1], p3[1], p4[1]);
+    const arcStartBearing = (centerBearing - sweepAngle / 2 + 360) % 360;
+    const arcEndBearing = (centerBearing + sweepAngle / 2 + 360) % 360;
 
-    const centerLng = center[0];
-    const centerLat = center[1];
+    // Get points at the start, end, and center of the arc
+    points.push(getPointAtDistanceBearing(center, radiusKm, arcStartBearing));
+    points.push(getPointAtDistanceBearing(center, radiusKm, arcEndBearing));
+    points.push(center);
 
-    switch (normalizedDirection) {
-        case 'N':
-            minLat = centerLat;
-            break;
-        case 'S':
-            maxLat = centerLat;
-            break;
-        case 'E':
-            minLng = centerLng;
-            break;
-        case 'W':
-            maxLng = centerLng;
-            break;
+    // Also include points at the cardinal directions if they are within the arc
+    const cardinalBearings = [0, 90, 180, 270];
+    for (const bearing of cardinalBearings) {
+        if (isBearingInArc(bearing, arcStartBearing, arcEndBearing)) {
+            points.push(getPointAtDistanceBearing(center, radiusKm, bearing));
+        }
     }
-    
+
+    // Now calculate the min/max coordinates from all collected points
+    let minLng = Infinity;
+    let minLat = Infinity;
+    let maxLng = -Infinity;
+    let maxLat = -Infinity;
+
+    for (const p of points) {
+        minLng = Math.min(minLng, p[0]);
+        minLat = Math.min(minLat, p[1]);
+        maxLng = Math.max(maxLng, p[0]);
+        maxLat = Math.max(maxLat, p[1]);
+    }
+
     return [minLng, minLat, maxLng, maxLat];
+}
+
+function isBearingInArc(bearing, startBearing, endBearing) {
+    if (startBearing > endBearing) {
+        // Handles cases where the arc crosses the 0/360 degree line (e.g., North)
+        return bearing >= startBearing || bearing <= endBearing;
+    } else {
+        return bearing >= startBearing && bearing <= endBearing;
+    }
 }
 
 
