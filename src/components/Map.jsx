@@ -293,8 +293,8 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         // Step 2: Extract the town names to send to the AI
         const townNames = relevantTowns.map(town => town.text);
 
-        // Step 3: Define a new, more precise AI prompt
-        const prompt = `Given the following list of places that are geographically located near the central point: ${townNames.join(', ')}. The user is looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise and creative description for each place in the list that is relevant to the filters. Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Do not add any places not on the list. For example: **Brighton**: A vibrant coastal city known for its beaches and nightlife.`;
+        // **UPDATED** Step 3: Define a new, more reliable AI prompt asking for a JSON response.
+        const prompt = `Given the following list of places that are geographically located near the central point: ${townNames.join(', ')}. The user is looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise and creative description for each place in the list that is relevant to the filters. Respond ONLY with a JSON object. The keys of the object should be the place names and the values should be the descriptions. Do not add any places not on the list. Example: {"Brighton": "A vibrant coastal city known for its beaches and nightlife."}`;
 
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
@@ -309,30 +309,42 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             throw new Error('AI suggestion server returned an empty response.');
         }
         
-        // **UPDATED** Step 4: Add more robust parsing logic
-        const lines = aiGeneratedContent.split('\n').filter(line => line.trim() !== ''); // Filter out empty lines
-        const aiDescriptions = {};
-        for (const line of lines) {
-            // Regex to match bolded text followed by a colon and a description
-            const match = line.match(/^\s*\d*\.?\s*\*\*(.*?)\*\*\s*:\s*(.*)/);
-            if (match) {
-                const place = match[1].trim();
-                const description = match[2].trim();
-                // Ensure the AI actually provided a name from our list
-                if (townNames.includes(place)) {
-                    aiDescriptions[place] = description;
-                }
-            } else {
-                // Fallback for cases where the AI doesn't use bolding
-                const fallbackMatch = line.match(/^\s*\d*\.?\s*(.*?)\s*:\s*(.*)/);
-                if (fallbackMatch) {
-                    const place = fallbackMatch[1].trim();
-                    const description = fallbackMatch[2].trim();
+        let aiDescriptions = {};
+        let aiContentToDisplay = '';
+
+        // **UPDATED** Step 4: Add more robust parsing logic.
+        try {
+            // Attempt to parse the AI's response as a JSON object first.
+            aiDescriptions = JSON.parse(aiGeneratedContent);
+            aiContentToDisplay = 'Based on the towns found within the search area, here are a few suggestions:\n' + Object.entries(aiDescriptions).map(([name, description]) => `**${name}**: ${description}`).join('\n');
+        } catch (jsonError) {
+            console.warn("AI response was not valid JSON. Falling back to text parsing.", jsonError);
+            
+            // Fallback to the old text-based parsing logic if JSON fails.
+            const lines = aiGeneratedContent.split('\n').filter(line => line.trim() !== '');
+            for (const line of lines) {
+                const match = line.match(/^\s*\d*\.?\s*\*\*(.*?)\*\*\s*:\s*(.*)/);
+                if (match) {
+                    const place = match[1].trim();
+                    const description = match[2].trim();
                     if (townNames.includes(place)) {
                         aiDescriptions[place] = description;
                     }
+                } else {
+                    const fallbackMatch = line.match(/^\s*\d*\.?\s*(.*?)\s*:\s*(.*)/);
+                    if (fallbackMatch) {
+                        const place = fallbackMatch[1].trim();
+                        const description = fallbackMatch[2].trim();
+                        if (townNames.includes(place)) {
+                            aiDescriptions[place] = description;
+                        }
+                    }
                 }
             }
+
+            aiContentToDisplay = Object.keys(aiDescriptions).length > 0
+                ? 'Based on the towns found within the search area, here are a few suggestions:\n' + Object.entries(aiDescriptions).map(([name, description]) => `**${name}**: ${description}`).join('\n')
+                : 'No suggestions found within the search area.';
         }
 
         // Step 5: Add the new pins to the map, using the geocoded coordinates from the initial Mapbox search
@@ -368,14 +380,14 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }
 
         // 6. Update the UI with the final AI content
-        const aiContentToDisplay = finalPins.length > 0
+        const finalAiContentToDisplay = finalPins.length > 0
             ? 'Based on the towns found within the search area, here are a few suggestions:\n' + finalPins.map(pin => `**${pin.name}**: ${pin.description}`).join('\n')
             : 'No suggestions found within the search area.';
 
         setDroppedPins(prevPins =>
             prevPins.map(pin =>
                 pin.id === pinId
-                    ? { ...pin, aiCache: { ...pin.aiCache, [cacheKey]: aiContentToDisplay } }
+                    ? { ...pin, aiCache: { ...pin.aiCache, [cacheKey]: finalAiContentToDisplay } }
                     : pin
             )
         );
@@ -383,7 +395,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         setActivePopupData((prev) => ({
             ...prev,
             loading: false,
-            aiContent: aiContentToDisplay,
+            aiContent: finalAiContentToDisplay,
             error: null,
         }));
 
@@ -397,6 +409,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }));
     }
 }, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview]);
+
   
 
 
