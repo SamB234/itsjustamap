@@ -194,6 +194,34 @@ const filterEmojis = {
 };
 
 
+
+  
+  // A new function to perform a geospatial search for towns within the radius and direction.
+const fetchRelevantTowns = async (center, radiusKm, direction) => {
+    try {
+        const [lng, lat] = center;
+        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?proximity=${lng},${lat}&types=place,locality&country=GB&access_token=${mapboxgl.accessToken}`);
+        
+        if (!response.ok) {
+            throw new Error(`Mapbox API request failed with status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const features = data.features || [];
+
+        // Filter the towns to only include those within the specified arc
+        const relevantTowns = features.filter(feature => {
+            const featureCoords = feature.center;
+            return isPointInArc(featureCoords, center, radiusKm, direction);
+        });
+
+        return relevantTowns;
+    } catch (error) {
+        console.error('Error fetching relevant towns:', error);
+        return [];
+    }
+};
+
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
     // 1. Validate coordinates
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
@@ -207,7 +235,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         return;
     }
 
-    // 2. Handle overview direction
+    // 2. Handle overview direction (no changes here, already fixed)
     if (direction === 'Overview') {
         const overview = await fetchGeneralOverview(placeName, lng, lat);
         setActivePopupData(prev => ({
@@ -242,30 +270,13 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         error: null,
         radius: direction === 'Overview' ? null : radius,
     }));
-    
-    // Log the radius to confirm the value is being used correctly
-    console.log(`Using radius: ${radius} km`);
 
     try {
-        console.log('Fetching towns from Mapbox...');
+        // Step 1: Use Mapbox to find relevant towns within the search arc.
+        const relevantTowns = await fetchRelevantTowns([lng, lat], radius, direction);
 
-        // 5. Fetch towns from Mapbox
-        const townsResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?country=GB&types=place,locality&access_token=${mapboxgl.accessToken}`);
-        
-        if (!townsResponse.ok) {
-            const errorBody = await townsResponse.text();
-            console.error('Mapbox API Error Response:', errorBody);
-            throw new Error(`Mapbox API request failed with status: ${townsResponse.status}`);
-        }
-        
-        const townsData = await townsResponse.json();
-
-        const townNames = townsData.features
-            .map(feature => feature.text)
-            .filter((value, index, self) => self.indexOf(value) === index);
-
-        if (townNames.length === 0) {
-            const aiContentToDisplay = 'No major towns found near this area. Try a different location.';
+        if (relevantTowns.length === 0) {
+            const aiContentToDisplay = 'No major towns found within the search area. Try a different location or a larger radius.';
             setActivePopupData(prev => ({
                 ...prev,
                 loading: false,
@@ -275,10 +286,11 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             return;
         }
 
-        console.log(`Found towns: ${townNames.join(', ')}`);
-
-        // 6. Define AI prompt and fetch suggestion from your backend
-        const prompt = `Given the location coordinates [${lng}, ${lat}] and the central point of ${placeName}, the user is exploring towards the ${direction}. They are looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for a place that fits the criteria, is not ${placeName} itself, and is within a reasonable distance (e.g., within ${radius}km). Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Brighton**: A vibrant coastal city known for its beaches.`;
+        // Step 2: Extract the town names to send to the AI
+        const townNames = relevantTowns.map(town => town.text);
+        
+        // Step 3: Define a new, more precise AI prompt
+        const prompt = `Given the following list of places that are geographically located near the central point: ${townNames.join(', ')}. The user is looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise and creative description for each place in the list that is relevant to the filters. Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Do not add any places not on the list. Example: **Brighton**: A vibrant coastal city known for its beaches and nightlife.`;
     
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
@@ -294,74 +306,51 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }
 
         const lines = aiGeneratedContent.split('\n');
-        const validLocations = [];
-
+        const aiDescriptions = {};
         for (const line of lines) {
             const match = line.match(/\*\*(.*?)\*\*\s*:\s*(.*)/);
             if (match) {
                 const place = match[1].trim();
                 const description = match[2].trim();
-                validLocations.push({ name: place, description });
+                aiDescriptions[place] = description;
             }
         }
         
-        // 7. Geocode suggested locations and check if they're in the search area
-        const geocodedLocations = [];
-        for (const loc of validLocations) {
-            const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(loc.name)}.json?country=GB&access_token=${mapboxgl.accessToken}`);
-            const geocodingData = await geocodingResponse.json();
-            
-            if (geocodingData.features && geocodingData.features.length > 0) {
-                const coordinates = geocodingData.features[0].center;
-                // This is the updated filter logic
-                if (getDistance([lng, lat], coordinates) <= radius) {
-                    geocodedLocations.push({
-                        ...loc,
-                        coords: coordinates
-                    });
-                } else {
-                    console.warn(`AI suggested '${loc.name}', but it's outside the radius and will not be displayed.`);
+        // Step 4: Add the new pins to the map, using the geocoded coordinates from the initial Mapbox search
+        const finalPins = relevantTowns
+            .filter(town => aiDescriptions[town.text]) // Only keep towns that the AI provided a description for
+            .map(town => {
+                let emojiToUse = '📌';
+                if (Array.isArray(activeFilters) && activeFilters.length > 0) {
+                    const foundFilter = activeFilters.find(filter => filterEmojis[filter.toLowerCase()]);
+                    if (foundFilter) {
+                        emojiToUse = filterEmojis[foundFilter.toLowerCase()];
+                    }
                 }
-            } else {
-                console.warn(`Could not find coordinates for: ${loc.name}`);
-            }
-        }
+                
+                return {
+                    id: uuidv4(),
+                    coords: town.center,
+                    description: aiDescriptions[town.text],
+                    name: town.text,
+                    isAIGenerated: true,
+                    emoji: emojiToUse,
+                    filters: activeFilters,
+                };
+            });
 
-        // 8. Add the new pins to the map
-        if (geocodedLocations.length > 0) {
-            console.log('Active Filters:', activeFilters); // Debugging line for active filters
-
+        if (finalPins.length > 0) {
             setDroppedPins(prevPins => {
                 const nonAiPins = prevPins.filter(pin => !pin.isAIGenerated);
-                const newPins = geocodedLocations.map(loc => {
-                    // Corrected emoji logic to find the first matching emoji from the active filters
-                    let emojiToUse = '📌';
-                    if (Array.isArray(activeFilters) && activeFilters.length > 0) {
-                        const foundFilter = activeFilters.find(filter => filterEmojis[filter.toLowerCase()]);
-                        if (foundFilter) {
-                            emojiToUse = filterEmojis[foundFilter.toLowerCase()];
-                        }
-                    }
-
-                    return {
-                        id: uuidv4(),
-                        coords: loc.coords,
-                        description: loc.description,
-                        name: loc.name,
-                        isAIGenerated: true,
-                        emoji: emojiToUse,
-                        filters: activeFilters,
-                    };
-                });
-                return [...nonAiPins, ...newPins];
+                return [...nonAiPins, ...finalPins];
             });
         } else {
-            console.log('No suggestions found within the search area.');
+            console.log('AI did not provide descriptions for the relevant towns.');
         }
 
-        // 9. Update the UI with the final AI content
-        const aiContentToDisplay = geocodedLocations.length > 0
-            ? 'Based on the towns found within the search area, here are a few suggestions:\n' + geocodedLocations.map(loc => `**${loc.name}**: ${loc.description}`).join('\n')
+        // 5. Update the UI with the final AI content
+        const aiContentToDisplay = finalPins.length > 0
+            ? 'Based on the towns found within the search area, here are a few suggestions:\n' + finalPins.map(pin => `**${pin.name}**: ${pin.description}`).join('\n')
             : 'No suggestions found within the search area.';
 
         setDroppedPins(prevPins =>
@@ -388,10 +377,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             error: error.message,
         }));
     }
-}, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, getDistance, fetchGeneralOverview, directionMap]);
-  
-  
-  
+}, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview]);
   
 
   
