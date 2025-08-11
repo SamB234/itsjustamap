@@ -166,42 +166,47 @@ export default function Map() {
 
 // Add this function to your map.jsx file
 const fetchGeneralOverview = useCallback(async (placeName, lng, lat) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: `Given the coordinates [${lng}, ${lat}], provide a brief overview of interesting things to do or see in "${placeName}". Respond with a single paragraph of approximately 50 words.`,
-        }),
-      });
-      const data = await response.json();
-      return data.suggestion;
-    } catch (error) {
-      console.error('Error fetching general overview:', error);
-      return 'Could not fetch a general overview for this place.';
-    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: `Given the coordinates [${lng}, ${lat}], provide a brief overview of interesting things to do or see in "${placeName}". Respond with a single paragraph of approximately 50 words.`,
+            }),
+        });
+        const data = await response.json();
+        return data.suggestion;
+    } catch (error) {
+        console.error('Error fetching general overview:', error);
+        return 'Could not fetch a general overview for this place.';
+    }
 }, []);
 
 
 const filterEmojis = {
-  'nature': '🌳',
-  'culture': '🏛️',
-  'adventure': '⛰️',
-  'sports': '⚽',
-  'beach': '🏖️',
-  'food': '🍔',
-  'nightlife': '🌃'
+    'nature': '🌳',
+    'culture': '🏛️',
+    'adventure': '⛰️',
+    'sports': '⚽',
+    'beach': '🏖️',
+    'food': '🍔',
+    'nightlife': '🌃'
 };
 
 
 
-  
-  // A new function to perform a geospatial search for towns within the radius and direction.
+// A new function to perform a geospatial search for towns within the radius and direction.
 const fetchRelevantTowns = async (center, radiusKm, direction) => {
     try {
-        const [lng, lat] = center;
-        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?proximity=${lng},${lat}&types=place,locality&country=GB&access_token=${mapboxgl.accessToken}`);
-        
+        const bbox = getArcBoundingBox(center, radiusKm, direction);
+        if (!bbox) {
+            console.error('Could not generate a valid bounding box.');
+            return [];
+        }
+        const bboxString = bbox.join(',');
+
+        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?bbox=${bboxString}&types=place,locality&access_token=${mapboxgl.accessToken}`);
+
         if (!response.ok) {
             throw new Error(`Mapbox API request failed with status: ${response.status}`);
         }
@@ -288,10 +293,10 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
         // Step 2: Extract the town names to send to the AI
         const townNames = relevantTowns.map(town => town.text);
-        
+
         // Step 3: Define a new, more precise AI prompt
         const prompt = `Given the following list of places that are geographically located near the central point: ${townNames.join(', ')}. The user is looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise and creative description for each place in the list that is relevant to the filters. Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Do not add any places not on the list. Example: **Brighton**: A vibrant coastal city known for its beaches and nightlife.`;
-    
+
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -300,7 +305,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
         const result = await response.json();
         const aiGeneratedContent = result?.suggestion;
-        
+
         if (!aiGeneratedContent) {
             throw new Error('AI suggestion server returned an empty response.');
         }
@@ -315,7 +320,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                 aiDescriptions[place] = description;
             }
         }
-        
+
         // Step 4: Add the new pins to the map, using the geocoded coordinates from the initial Mapbox search
         const finalPins = relevantTowns
             .filter(town => aiDescriptions[town.text]) // Only keep towns that the AI provided a description for
@@ -378,6 +383,9 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }));
     }
 }, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview]);
+  
+
+
   
 
   
