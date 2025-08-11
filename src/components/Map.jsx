@@ -230,6 +230,9 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
 
 
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
+    console.log("--- Starting AI Suggestion Fetch ---");
+    console.log(`Pin ID: ${pinId}, Location: ${placeName}, Direction: ${direction}, Coords: [${lng}, ${lat}], Radius: ${radius}`);
+
     // 1. Validate coordinates
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
         console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
@@ -242,8 +245,9 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         return;
     }
 
-    // 2. Handle overview direction (no changes here, already fixed)
+    // 2. Handle overview direction
     if (direction === 'Overview') {
+        console.log("Direction is 'Overview', fetching general overview.");
         const overview = await fetchGeneralOverview(placeName, lng, lat);
         setActivePopupData(prev => ({
             ...prev,
@@ -259,6 +263,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
     const cacheKey = direction + '-' + activeFilters.sort().join(',');
     const currentPin = droppedPins.find(p => p.id === pinId);
     if (currentPin && currentPin.aiCache && currentPin.aiCache[cacheKey]) {
+        console.log("Found cached data. Using it.");
         setActivePopupData(prev => ({
             ...prev,
             loading: false,
@@ -280,10 +285,13 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
     try {
         // Step 1: Use Mapbox to find relevant towns within the search arc.
+        console.log("Step 1: Calling fetchRelevantTowns...");
         const relevantTowns = await fetchRelevantTowns([lng, lat], radius, direction);
+        console.log(`Step 1 Result: Found ${relevantTowns.length} relevant towns.`);
 
         if (relevantTowns.length === 0) {
             const aiContentToDisplay = 'No major towns found within the search area. Try a different location or a larger radius.';
+            console.warn(aiContentToDisplay);
             setActivePopupData(prev => ({
                 ...prev,
                 loading: false,
@@ -295,18 +303,28 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
         // Step 2: Extract the town names to send to the AI
         const townNames = relevantTowns.map(town => town.text);
+        console.log("Step 2: Towns to send to AI:", townNames);
 
-        // **UPDATED** Step 3: Define a new, more reliable AI prompt asking for a JSON response.
+        // Step 3: Define AI prompt for JSON response
         const prompt = `Given the following list of places that are geographically located near the central point: ${townNames.join(', ')}. The user is looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise and creative description for each place in the list that is relevant to the filters. Respond ONLY with a JSON object. The keys of the object should be the place names and the values should be the descriptions. Do not add any places not on the list. Example: {"Brighton": "A vibrant coastal city known for its beaches and nightlife."}`;
 
+        console.log("Step 3: Sending prompt to AI service...");
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt }),
         });
 
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Step 3 API Error: Status ${response.status}, Body: ${errorText}`);
+            throw new Error(`AI suggestion server returned an error: ${response.status}`);
+        }
+
         const result = await response.json();
         const aiGeneratedContent = result?.suggestion;
+        console.log("Step 3 Result: AI response received.");
+        console.log("AI Raw Content:", aiGeneratedContent);
 
         if (!aiGeneratedContent) {
             throw new Error('AI suggestion server returned an empty response.');
@@ -314,13 +332,14 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         
         let aiDescriptions = {};
         let aiContentToDisplay = '';
-
-        // **UPDATED** Step 4: Clean the AI's response by removing markdown code block.
+        
+        // Step 4: Clean and parse the AI's response.
         let cleanedContent = aiGeneratedContent.replace(/```json\s*|```/g, '').trim();
+        console.log("Cleaned AI Content:", cleanedContent);
 
         try {
-            // Attempt to parse the AI's response as a JSON object first.
             aiDescriptions = JSON.parse(cleanedContent);
+            console.log("Successfully parsed AI response as JSON:", aiDescriptions);
             aiContentToDisplay = 'Based on the towns found within the search area, here are a few suggestions:\n' + Object.entries(aiDescriptions).map(([name, description]) => `**${name}**: ${description}`).join('\n');
         } catch (jsonError) {
             console.warn("AI response was not valid JSON. Falling back to text parsing.", jsonError);
@@ -346,7 +365,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                     }
                 }
             }
-
+            console.log("Fallback text parsing results:", aiDescriptions);
             aiContentToDisplay = Object.keys(aiDescriptions).length > 0
                 ? 'Based on the towns found within the search area, here are a few suggestions:\n' + Object.entries(aiDescriptions).map(([name, description]) => `**${name}**: ${description}`).join('\n')
                 : 'No suggestions found within the search area.';
@@ -374,6 +393,8 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                     filters: activeFilters,
                 };
             });
+        console.log(`Step 5: Generated ${finalPins.length} final pins.`);
+
 
         if (finalPins.length > 0) {
             setDroppedPins(prevPins => {
@@ -403,6 +424,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             aiContent: finalAiContentToDisplay,
             error: null,
         }));
+        console.log("--- Finished AI Suggestion Fetch ---");
 
     } catch (error) {
         console.error('Error fetching AI suggestion:', error);
@@ -413,7 +435,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             error: error.message,
         }));
     }
-}, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview]);
+}, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview, fetchRelevantTowns]);
   
   
 
