@@ -159,16 +159,20 @@ export default function Map() {
 
 
 
-  // Add this function to your map.jsx file
-const fetchGeneralOverview = useCallback(async (placeName) => {
+
+
+
+
+
+// Add this function to your map.jsx file
+const fetchGeneralOverview = useCallback(async (placeName, lng, lat) => {
     try {
       const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-    prompt: `Provide a brief overview of interesting things to do or see in "${placeName}". Respond with a single paragraph of approximately 50 words.`,
-}),
-        
+          prompt: `Given the coordinates [${lng}, ${lat}], provide a brief overview of interesting things to do or see in "${placeName}". Respond with a single paragraph of approximately 50 words.`,
+        }),
       });
       const data = await response.json();
       return data.suggestion;
@@ -176,7 +180,8 @@ const fetchGeneralOverview = useCallback(async (placeName) => {
       console.error('Error fetching general overview:', error);
       return 'Could not fetch a general overview for this place.';
     }
-  }, []);
+}, []);
+
 
 const filterEmojis = {
   'nature': '🌳',
@@ -204,7 +209,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
 
     // 2. Handle overview direction
     if (direction === 'Overview') {
-        const overview = await fetchGeneralOverview(placeName);
+        const overview = await fetchGeneralOverview(placeName, lng, lat);
         setActivePopupData(prev => ({
             ...prev,
             loading: false,
@@ -273,7 +278,7 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         console.log(`Found towns: ${townNames.join(', ')}`);
 
         // 6. Define AI prompt and fetch suggestion from your backend
-        const prompt = `Given the following location: ${placeName}. The user is exploring towards the ${direction}. They are looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for a place that fits the criteria, is not ${placeName} itself, and is within a reasonable distance (e.g., within ${radius}km). Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Brighton**: A vibrant coastal city known for its beaches.`;
+        const prompt = `Given the location coordinates [${lng}, ${lat}] and the central point of ${placeName}, the user is exploring towards the ${direction}. They are looking for suggestions with the following filters: ${activeFilters.join(', ')}. Provide a concise suggestion for a place that fits the criteria, is not ${placeName} itself, and is within a reasonable distance (e.g., within ${radius}km). Respond as a numbered list. Each item should start with the place name in bold, followed by a colon and a short description. Example: **Brighton**: A vibrant coastal city known for its beaches.`;
     
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
@@ -332,9 +337,9 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                     // Corrected emoji logic to find the first matching emoji from the active filters
                     let emojiToUse = '📌';
                     if (Array.isArray(activeFilters) && activeFilters.length > 0) {
-                        const foundEmoji = activeFilters.find(filter => filterEmojis[filter.toLowerCase()]);
-                        if (foundEmoji) {
-                            emojiToUse = filterEmojis[foundEmoji.toLowerCase()];
+                        const foundFilter = activeFilters.find(filter => filterEmojis[filter.toLowerCase()]);
+                        if (foundFilter) {
+                            emojiToUse = filterEmojis[foundFilter.toLowerCase()];
                         }
                     }
 
@@ -384,6 +389,8 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }));
     }
 }, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, getDistance, fetchGeneralOverview, directionMap]);
+  
+  
   
   
 
