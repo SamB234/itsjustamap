@@ -206,8 +206,8 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
 
         const placeTypes = 'place,locality,neighborhood,region,district,postcode,county';
         
-        // This is the corrected API URL. It removes the redundant '/place.json'
-        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places?bbox=${bboxString}&access_token=${mapboxgl.accessToken}&limit=20&types=${placeTypes}`);
+        // This is the correct API URL, with "place.json" re-added.
+        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?bbox=${bboxString}&access_token=${mapboxgl.accessToken}&limit=20&types=${placeTypes}`);
 
         if (!response.ok) {
             const errorBody = await response.text();
@@ -234,7 +234,6 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
         return [];
     }
 };
-
 
   
 
