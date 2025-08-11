@@ -204,9 +204,10 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
         }
         const bboxString = bbox.join(',');
 
-        const placeTypes = 'place,locality,neighborhood,region,district,postcode,county';
+        // CORRECTED placeTypes: Removed "county" and others that are not reliable for "towns".
+        const placeTypes = 'place,locality,region,postcode';
         
-        // This is the correct API URL, with "place.json" re-added.
+        // This is the correct API URL.
         const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?bbox=${bboxString}&access_token=${mapboxgl.accessToken}&limit=20&types=${placeTypes}`);
 
         if (!response.ok) {
@@ -234,6 +235,7 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
         return [];
     }
 };
+
 
   
 
