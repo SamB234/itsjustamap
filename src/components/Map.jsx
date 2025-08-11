@@ -198,24 +198,28 @@ const filterEmojis = {
   
   
 
+
 // A new function to perform a geospatial search for towns within the radius and direction.
+// This new version has been rewritten to be more robust.
 const fetchRelevantTowns = async (center, radiusKm, direction) => {
     try {
+        console.log(`[Mapbox] Searching for towns... Center: ${center}, Radius: ${radiusKm}km, Direction: ${direction}`);
         const bbox = getArcBoundingBox(center, radiusKm, direction);
         if (!bbox) {
-            console.error('Could not generate a valid bounding box.');
+            console.error('[Mapbox] Could not generate a valid bounding box.');
             return [];
         }
         const bboxString = bbox.join(',');
 
-        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/poi.json?bbox=${bboxString}&types=place,locality&access_token=${mapboxgl.accessToken}`);
+        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?bbox=${bboxString}&access_token=${mapboxgl.accessToken}&limit=20`);
 
         if (!response.ok) {
-            throw new Error(`Mapbox API request failed with status: ${response.status}`);
+            throw new Error(`[Mapbox] API request failed with status: ${response.status}`);
         }
         
         const data = await response.json();
         const features = data.features || [];
+        console.log(`[Mapbox] Found ${features.length} features within bounding box.`);
 
         // Filter the towns to only include those within the specified arc
         const relevantTowns = features.filter(feature => {
@@ -223,16 +227,17 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
             return isPointInArc(featureCoords, center, radiusKm, direction);
         });
 
+        console.log(`[Mapbox] Filtered to ${relevantTowns.length} towns within the arc.`);
         return relevantTowns;
     } catch (error) {
-        console.error('Error fetching relevant towns:', error);
+        console.error('[Mapbox] Error fetching relevant towns:', error);
         return [];
     }
 };
 
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
     console.log("--- Starting AI Suggestion Fetch ---");
-    console.log(`Pin ID: ${pinId}, Location: ${placeName}, Direction: ${direction}, Coords: [${lng}, ${lat}], Radius: ${radius}`);
+    console.log(`Pin ID: ${pinId}, Location: ${placeName}, Direction: ${direction}, Coords: [${lng}, ${lat}], Radius: ${radius}, Filters: ${activeFilters}`);
 
     // 1. Validate coordinates
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
@@ -306,13 +311,11 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         const townNames = relevantTowns.map(town => town.text);
         console.log("Step 2: Towns to send to AI:", townNames);
 
-        // **CRUCIAL CHANGE**
-        // Step 3: Send the towns and filters directly to the backend. The backend will now construct the prompt.
+        // Step 3: Send the towns and filters directly to the backend.
         console.log("Step 3: Sending town names and filters to AI service...");
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            // The request body now sends an object with `townNames` and `activeFilters`.
             body: JSON.stringify({ townNames, activeFilters }),
         });
 
@@ -332,7 +335,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }
         
         let aiDescriptions = {};
-        let aiContentToDisplay = '';
         
         // Step 4: Clean and parse the AI's response.
         let cleanedContent = aiGeneratedContent.replace(/```json\s*|```/g, '').trim();
@@ -341,38 +343,14 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         try {
             aiDescriptions = JSON.parse(cleanedContent);
             console.log("Successfully parsed AI response as JSON:", aiDescriptions);
-            aiContentToDisplay = 'Based on the towns found within the search area, here are a few suggestions:\n' + Object.entries(aiDescriptions).map(([name, description]) => `**${name}**: ${description}`).join('\n');
         } catch (jsonError) {
-            console.warn("AI response was not valid JSON. Falling back to text parsing.", jsonError);
-            
-            // Fallback to the old text-based parsing logic if JSON fails.
-            const lines = aiGeneratedContent.split('\n').filter(line => line.trim() !== '');
-            for (const line of lines) {
-                const match = line.match(/^\s*\d*\.?\s*\*\*(.*?)\*\*\s*:\s*(.*)/);
-                if (match) {
-                    const place = match[1].trim();
-                    const description = match[2].trim();
-                    if (townNames.includes(place)) {
-                        aiDescriptions[place] = description;
-                    }
-                } else {
-                    const fallbackMatch = line.match(/^\s*\d*\.?\s*(.*?)\s*:\s*(.*)/);
-                    if (fallbackMatch) {
-                        const place = fallbackMatch[1].trim();
-                        const description = fallbackMatch[2].trim();
-                        if (townNames.includes(place)) {
-                            aiDescriptions[place] = description;
-                        }
-                    }
-                }
-            }
-            console.log("Fallback text parsing results:", aiDescriptions);
-            aiContentToDisplay = Object.keys(aiDescriptions).length > 0
-                ? 'Based on the towns found within the search area, here are a few suggestions:\n' + Object.entries(aiDescriptions).map(([name, description]) => `**${name}**: ${description}`).join('\n')
-                : 'No suggestions found within the search area.';
+            console.error("AI response was not valid JSON.", jsonError);
+            // We now assume the AI will always return JSON due to backend changes.
+            // If this fails, it's a critical error.
+            throw new Error('AI response was not a valid JSON object.');
         }
 
-        // Step 5: Add the new pins to the map, using the geocoded coordinates from the initial Mapbox search
+        // Step 5: Add the new pins to the map
         const finalPins = relevantTowns
             .filter(town => aiDescriptions[town.text]) // Only keep towns that the AI provided a description for
             .map(town => {
@@ -395,7 +373,6 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
                 };
             });
         console.log(`Step 5: Generated ${finalPins.length} final pins.`);
-
 
         if (finalPins.length > 0) {
             setDroppedPins(prevPins => {
@@ -437,6 +414,10 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         }));
     }
 }, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview, fetchRelevantTowns]);
+  
+
+
+  
   
 
   
