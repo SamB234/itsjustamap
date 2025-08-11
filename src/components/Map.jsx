@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown'; // <-- Add this import
 
 // Import custom components and utilities
 import ArrowPin from './ArrowPin';
-import { getArcPoints, getCurvedLinePoints, getDestinationPoint, getCurvedArc, isPointInArc, getDistance } from './mapUtils';
+import { getArcPoints, getCurvedLinePoints, getDestinationPoint, getCurvedArc, isPointInArc, getDistance, getArcBoundingBox } from './mapUtils';
 import Sidebar from './Sidebar';
 
 // =========================================================================
