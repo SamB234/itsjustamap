@@ -7,31 +7,31 @@
 // (Simplified for demonstration; for production, consider a robust geo-library like Turf.js)
 
 /**
- * Converts degrees to radians.
- * @param {number} degrees
- * @returns {number} radians
- */
+ * Converts degrees to radians.
+ * @param {number} degrees
+ * @returns {number} radians
+ */
 function toRadians(degrees) {
     return degrees * Math.PI / 180;
 }
 
 /**
- * Converts radians to degrees.
- * @param {number} radians
- * @returns {number} degrees
- */
+ * Converts radians to degrees.
+ * @param {number} radians
+ * @returns {number} degrees
+ */
 function toDegrees(radians) {
     return radians * 180 / Math.PI;
 }
 
 /**
- * Calculates a new point given a start point, bearing, and distance.
- * Uses Haversine formula for spherical earth.
- * @param {[number, number]} center [longitude, latitude]
- * @param {number} distanceKm Distance in kilometers
- * @param {number} bearingDegrees Bearing in degrees (0 = North, 90 = East, 180 = South, 270 = West)
- * @returns {[number, number]} New point [longitude, latitude]
- */
+ * Calculates a new point given a start point, bearing, and distance.
+ * Uses Haversine formula for spherical earth.
+ * @param {[number, number]} center [longitude, latitude]
+ * @param {number} distanceKm Distance in kilometers
+ * @param {number} bearingDegrees Bearing in degrees (0 = North, 90 = East, 180 = South, 270 = West)
+ * @returns {[number, number]} New point [longitude, latitude]
+ */
 function getPointAtDistanceBearing(center, distanceKm, bearingDegrees) {
     const R = 6371; // Earth's radius in kilometers
     const latRad = toRadians(center[1]);
@@ -55,11 +55,11 @@ function getPointAtDistanceBearing(center, distanceKm, bearingDegrees) {
 }
 
 /**
- * Calculates the distance between two points on the Earth's surface using the Haversine formula.
- * @param {[number, number]} p1 [longitude, latitude] of the first point
- * @param {[number, number]} p2 [longitude, latitude] of the second point
- * @returns {number} The distance in kilometers
- */
+ * Calculates the distance between two points on the Earth's surface using the Haversine formula.
+ * @param {[number, number]} p1 [longitude, latitude] of the first point
+ * @param {[number, number]} p2 [longitude, latitude] of the second point
+ * @returns {number} The distance in kilometers
+ */
 export function getDistance(p1, p2) {
     const R = 6371; // Earth's radius in kilometers
     const [lon1, lat1] = p1.map(toRadians);
@@ -75,11 +75,11 @@ export function getDistance(p1, p2) {
 }
 
 /**
- * Calculates the bearing (direction) from point p1 to p2.
- * @param {[number, number]} p1 [longitude, latitude] of the start point
- * @param {[number, number]} p2 [longitude, latitude] of the end point
- * @returns {number} The bearing in degrees (0-360)
- */
+ * Calculates the bearing (direction) from point p1 to p2.
+ * @param {[number, number]} p1 [longitude, latitude] of the start point
+ * @param {[number, number]} p2 [longitude, latitude] of the end point
+ * @returns {number} The bearing in degrees (0-360)
+ */
 function getBearing(p1, p2) {
     const [lon1, lat1] = p1.map(toRadians);
     const [lon2, lat2] = p2.map(toRadians);
@@ -94,12 +94,12 @@ function getBearing(p1, p2) {
 }
 
 /**
- * Generates points for a full circle (polygon)
- * @param {[number, number]} center [longitude, latitude]
- * @param {number} radiusKm Radius in kilometers
- * @param {number} [numSegments=64] Number of segments for the circle (higher = smoother)
- * @returns {Array<[number, number]>} Array of [longitude, latitude] points forming a circle
- */
+ * Generates points for a full circle (polygon)
+ * @param {[number, number]} center [longitude, latitude]
+ * @param {number} radiusKm Radius in kilometers
+ * @param {number} [numSegments=64] Number of segments for the circle (higher = smoother)
+ * @returns {Array<[number, number]>} Array of [longitude, latitude] points forming a circle
+ */
 export function getCirclePoints(center, radiusKm, numSegments = 64) {
     const points = [];
     for (let i = 0; i <= numSegments; i++) {
@@ -113,15 +113,15 @@ export function getCirclePoints(center, radiusKm, numSegments = 64) {
 const MIN_ARC_WIDTH_DEGREES = 15; // Minimum width of the arc at its origin
 
 /**
- * Generates GeoJSON coordinates for an arc segment (a pie slice).
- * This will create a polygon starting from the center, going to the arc, and back to the center.
- * @param {[number, number]} center [longitude, latitude]
- * @param {number} radiusKm Radius of the arc in kilometers
- * @param {string} direction 'N', 'S', 'E', 'W' OR 'North', 'South', 'East', 'West'
- * @param {number} [sweepAngle=90] The total angle covered by the arc (e.g., 90 for a quarter circle)
- * @param {number} [numSegments=20] Number of segments for the arc itself (higher = smoother)
- * @returns {Array<[number, number]>} Array of [longitude, latitude] points forming the arc polygon
- */
+ * Generates GeoJSON coordinates for an arc segment (a pie slice).
+ * This will create a polygon starting from the center, going to the arc, and back to the center.
+ * @param {[number, number]} center [longitude, latitude]
+ * @param {number} radiusKm Radius of the arc in kilometers
+ * @param {string} direction 'N', 'S', 'E', 'W' OR 'North', 'South', 'East', 'West'
+ * @param {number} [sweepAngle=90] The total angle covered by the arc (e.g., 90 for a quarter circle)
+ * @param {number} [numSegments=20] Number of segments for the arc itself (higher = smoother)
+ * @returns {Array<[number, number]>} Array of [longitude, latitude] points forming the arc polygon
+ */
 export function getArcPoints(center, radiusKm, direction, sweepAngle = 90, numSegments = 20) {
     const directionBearings = {
         'N': 0, 'North': 0,
@@ -150,13 +150,67 @@ export function getArcPoints(center, radiusKm, direction, sweepAngle = 90, numSe
     return points;
 }
 
+// NEW FUNCTION: Calculates a bounding box for a given center, radius, and direction.
 /**
- * Calculates a single destination point given a start point, direction, and distance.
- * @param {[number, number]} center [longitude, latitude]
- * @param {string} direction 'North', 'South', 'East', 'West'
- * @param {number} distanceKm Distance in kilometers
- * @returns {[number, number]} The destination point
- */
+ * Calculates a bounding box [minLng, minLat, maxLng, maxLat] for the search arc.
+ * @param {[number, number]} center [longitude, latitude]
+ * @param {number} radiusKm Radius of the arc in kilometers
+ * @param {string} direction 'North', 'South', 'East', 'West'
+ * @returns {Array<number>|null} The bounding box or null if the direction is invalid.
+ */
+export function getArcBoundingBox(center, radiusKm, direction) {
+    const directionMap = {
+        'North': 'N',
+        'East': 'E',
+        'South': 'S',
+        'West': 'W',
+    };
+    const normalizedDirection = directionMap[direction];
+
+    if (!normalizedDirection) {
+        return null;
+    }
+
+    // Get the corners of the bounding box based on the center and radius
+    const p1 = getPointAtDistanceBearing(center, radiusKm, 0); // North
+    const p2 = getPointAtDistanceBearing(center, radiusKm, 90); // East
+    const p3 = getPointAtDistanceBearing(center, radiusKm, 180); // South
+    const p4 = getPointAtDistanceBearing(center, radiusKm, 270); // West
+
+    let minLng = Math.min(p1[0], p2[0], p3[0], p4[0]);
+    let minLat = Math.min(p1[1], p2[1], p3[1], p4[1]);
+    let maxLng = Math.max(p1[0], p2[0], p3[0], p4[0]);
+    let maxLat = Math.max(p1[1], p2[1], p3[1], p4[1]);
+
+    const centerLng = center[0];
+    const centerLat = center[1];
+
+    switch (normalizedDirection) {
+        case 'N':
+            minLat = centerLat;
+            break;
+        case 'S':
+            maxLat = centerLat;
+            break;
+        case 'E':
+            minLng = centerLng;
+            break;
+        case 'W':
+            maxLng = centerLng;
+            break;
+    }
+    
+    return [minLng, minLat, maxLng, maxLat];
+}
+
+
+/**
+ * Calculates a single destination point given a start point, direction, and distance.
+ * @param {[number, number]} center [longitude, latitude]
+ * @param {string} direction 'North', 'South', 'East', 'West'
+ * @param {number} distanceKm Distance in kilometers
+ * @returns {[number, number]} The destination point
+ */
 export function getDestinationPoint(center, direction, distanceKm) {
     let bearing;
     switch (direction) {
@@ -170,10 +224,10 @@ export function getDestinationPoint(center, direction, distanceKm) {
 }
 
 /**
- * Generates GeoJSON for a curved line between two points.
- * @param {Array<[number, number]>} coordsArray [startCoords, endCoords]
- * @returns {object} GeoJSON LineString object
- */
+ * Generates GeoJSON for a curved line between two points.
+ * @param {Array<[number, number]>} coordsArray [startCoords, endCoords]
+ * @returns {object} GeoJSON LineString object
+ */
 export function getCurvedArc(coordsArray) {
     const startCoords = coordsArray[0];
     const endCoords = coordsArray[1];
@@ -214,14 +268,14 @@ export function getCurvedArc(coordsArray) {
 }
 
 /**
- * Generates GeoJSON coordinates for a curved line between two points.
- * Uses a quadratic Bezier curve for a slight arc, ensuring the curve is always "upwards" (umbrella shape).
- * @param {[number, number]} startCoords [longitude, latitude] of the start point
- * @param {[number, number]} endCoords [longitude, latitude] of the end point
- * @param {number} [numPoints=50] Number of interpolation points for the curve (higher = smoother)
- * @param {number} [offsetFactor=0.2] Controls the "bend" of the curve. Higher value = more bend.
- * @returns {Array<[number, number]>} An array of [longitude, latitude] points
- */
+ * Generates GeoJSON coordinates for a curved line between two points.
+ * Uses a quadratic Bezier curve for a slight arc, ensuring the curve is always "upwards" (umbrella shape).
+ * @param {[number, number]} startCoords [longitude, latitude] of the start point
+ * @param {[number, number]} endCoords [longitude, latitude] of the end point
+ * @param {number} [numPoints=50] Number of interpolation points for the curve (higher = smoother)
+ * @param {number} [offsetFactor=0.2] Controls the "bend" of the curve. Higher value = more bend.
+ * @returns {Array<[number, number]>} An array of [longitude, latitude] points
+ */
 export function getCurvedLinePoints(startCoords, endCoords, numPoints = 50, offsetFactor = 0.2) {
     const [startLng, startLat] = startCoords;
     const [endLng, endLat] = endCoords;
@@ -263,14 +317,14 @@ export function getCurvedLinePoints(startCoords, endCoords, numPoints = 50, offs
 
 // KEY UPDATE: New filtering logic to create a more forgiving arc near the origin.
 /**
- * Checks if a point is within the arc defined by a center, radius, and direction.
- * @param {[number, number]} point [longitude, latitude]
- * @param {[number, number]} center [longitude, latitude]
- * @param {number} radiusKm Radius of the arc in kilometers
- * @param {string} direction 'N', 'S', 'E', 'W' OR 'North', 'South', 'East', 'West'
- * @param {number} [sweepAngle=90] The total angle covered by the arc
- * @returns {boolean} True if the point is within the arc, false otherwise
- */
+ * Checks if a point is within the arc defined by a center, radius, and direction.
+ * @param {[number, number]} point [longitude, latitude]
+ * @param {[number, number]} center [longitude, latitude]
+ * @param {number} radiusKm Radius of the arc in kilometers
+ * @param {string} direction 'N', 'S', 'E', 'W' OR 'North', 'South', 'East', 'West'
+ * @param {number} [sweepAngle=90] The total angle covered by the arc
+ * @returns {boolean} True if the point is within the arc, false otherwise
+ */
 export function isPointInArc(point, center, radiusKm, direction, sweepAngle = 90) {
     // Step 1: Check if the point is within the radius.
     const distance = getDistance(center, point);
