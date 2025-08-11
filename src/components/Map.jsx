@@ -198,16 +198,21 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
     try {
         console.log(`[Mapbox] Searching for towns... Center: ${center}, Radius: ${radiusKm}km, Direction: ${direction}`);
         const bbox = getArcBoundingBox(center, radiusKm, direction);
+        
+        // This log will confirm the bounding box is correctly formatted.
+        console.log('[Mapbox] Generated Bounding Box:', bbox);
+        
         if (!bbox) {
             console.error('[Mapbox] Could not generate a valid bounding box.');
             return [];
         }
         const bboxString = bbox.join(',');
 
-        // CORRECTED placeTypes: Removed "county" and others that are not reliable for "towns".
+        // This is the corrected 'types' parameter. It removes 'county'
+        // and focuses on reliable place types.
         const placeTypes = 'place,locality,region,postcode';
         
-        // This is the correct API URL.
+        // The correct Mapbox API URL for general geocoding
         const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?bbox=${bboxString}&access_token=${mapboxgl.accessToken}&limit=20&types=${placeTypes}`);
 
         if (!response.ok) {
