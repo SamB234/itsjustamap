@@ -204,13 +204,14 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
         }
         const bboxString = bbox.join(',');
 
-        // We'll also specify place_types in the Mapbox API call to get better results from the start.
         const placeTypes = 'place,locality,neighborhood,region,district,postcode,county';
         
-        // The corrected API URL, removing the redundant '/place.json' part
+        // This is the corrected API URL. It removes the redundant '/place.json'
         const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places?bbox=${bboxString}&access_token=${mapboxgl.accessToken}&limit=20&types=${placeTypes}`);
 
         if (!response.ok) {
+            const errorBody = await response.text();
+            console.error(`[Mapbox] API error body: ${errorBody}`);
             throw new Error(`[Mapbox] API request failed with status: ${response.status}`);
         }
         
@@ -218,13 +219,9 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
         const features = data.features || [];
         console.log(`[Mapbox] Found ${features.length} features within bounding box.`);
 
-        // Filter the towns to only include those with relevant place_type and within the arc
         const relevantTowns = features.filter(feature => {
             const featureCoords = feature.center;
-            // Check if place_type contains 'place', 'locality', or 'town' to ensure we get towns/cities
             const isTownOrCity = feature.place_type.some(type => ['place', 'locality', 'town'].includes(type));
-            
-            // Check if the feature is within the search arc
             const isInArc = isPointInArc(featureCoords, center, radiusKm, direction);
             
             return isTownOrCity && isInArc;
@@ -237,6 +234,8 @@ const fetchRelevantTowns = async (center, radiusKm, direction) => {
         return [];
     }
 };
+
+
   
 
   
