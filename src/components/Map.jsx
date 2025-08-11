@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown'; // <-- Add this import
 
 // Import custom components and utilities
 import ArrowPin from './ArrowPin';
-import { getArcPoints, getCurvedLinePoints, getDestinationPoint, getCurvedArc, isPointInArc, getDistance, getArcBoundingBox } from './mapUtils';
+import { getArcPoints, getCurvedLinePoints, getDestinationPoint, getCurvedArc } from './mapUtils';
 import Sidebar from './Sidebar';
 
 // =========================================================================
@@ -160,96 +160,19 @@ export default function Map() {
 
 
 
-
-
-
-
-const fetchGeneralOverview = useCallback(async (placeName, lng, lat) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                prompt: `Given the coordinates [${lng}, ${lat}], provide a brief overview of interesting things to do or see in "${placeName}". Respond with a single paragraph of approximately 50 words.`,
-            }),
-        });
-        const data = await response.json();
-        return data.suggestion;
-    } catch (error) {
-        console.error('Error fetching general overview:', error);
-        return 'Could not fetch a general overview for this place.';
-    }
-}, []);
-
-
 const filterEmojis = {
-    'nature': '🌳',
-    'culture': '🏛️',
-    'adventure': '⛰️',
-    'sports': '⚽',
-    'beach': '🏖️',
-    'food': '🍔',
-    'nightlife': '🌃'
+  'nature': '🌳',
+  'culture': '🏛️',
+  'adventure': '⛰️',
+  'sports': '⚽',
+  'beach': '🏖️',
+  'food': '🍔',
+  'nightlife': '🌃'
 };
 
+// ... (rest of the code)
 
-
-const fetchRelevantTowns = async (center, radiusKm, direction) => {
-    try {
-        console.log(`[Mapbox] Searching for towns... Center: ${center}, Radius: ${radiusKm}km, Direction: ${direction}`);
-        const bbox = getArcBoundingBox(center, radiusKm, direction);
-        
-        // This log will confirm the bounding box is correctly formatted.
-        console.log('[Mapbox] Generated Bounding Box:', bbox);
-        
-        if (!bbox) {
-            console.error('[Mapbox] Could not generate a valid bounding box.');
-            return [];
-        }
-        const bboxString = bbox.join(',');
-
-        // This is the corrected 'types' parameter. It removes 'county'
-        // and focuses on reliable place types.
-        const placeTypes = 'place,locality,region,postcode';
-        
-        // The correct Mapbox API URL for general geocoding
-        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?bbox=${bboxString}&access_token=${mapboxgl.accessToken}&limit=20&types=${placeTypes}`);
-
-        if (!response.ok) {
-            const errorBody = await response.text();
-            console.error(`[Mapbox] API error body: ${errorBody}`);
-            throw new Error(`[Mapbox] API request failed with status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        const features = data.features || [];
-        console.log(`[Mapbox] Found ${features.length} features within bounding box.`);
-
-        const relevantTowns = features.filter(feature => {
-            const featureCoords = feature.center;
-            const isTownOrCity = feature.place_type.some(type => ['place', 'locality', 'town'].includes(type));
-            const isInArc = isPointInArc(featureCoords, center, radiusKm, direction);
-            
-            return isTownOrCity && isInArc;
-        });
-        
-        console.log(`[Mapbox] Filtered to ${relevantTowns.length} towns within the arc.`);
-        return relevantTowns;
-    } catch (error) {
-        console.error('[Mapbox] Error fetching relevant towns:', error);
-        return [];
-    }
-};
-
-
-  
-
-  
-const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
-    console.log("--- Starting AI Suggestion Fetch ---");
-    console.log(`Pin ID: ${pinId}, Location: ${placeName}, Direction: ${direction}, Coords: [${lng}, ${lat}], Radius: ${radius}, Filters: ${activeFilters}`);
-
-    // 1. Validate coordinates
+const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = null) => {
     if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
         console.error("Attempted to set active popup with invalid coordinates (NaN, NaN). Aborting AI fetch.");
         setActivePopupData(prev => ({
@@ -261,148 +184,104 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         return;
     }
 
-    // 2. Handle overview direction
-    if (direction === 'Overview') {
-        console.log("Direction is 'Overview', fetching general overview.");
-        const overview = await fetchGeneralOverview(placeName, lng, lat);
-        setActivePopupData(prev => ({
-            ...prev,
-            loading: false,
-            aiContent: overview,
-            error: null,
-            radius: null
-        }));
-        return;
-    }
-
-    // 3. Handle caching
-    const cacheKey = direction + '-' + activeFilters.sort().join(',');
-    const currentPin = droppedPins.find(p => p.id === pinId);
-    if (currentPin && currentPin.aiCache && currentPin.aiCache[cacheKey]) {
-        console.log("Found cached data. Using it.");
-        setActivePopupData(prev => ({
-            ...prev,
-            loading: false,
-            aiContent: currentPin.aiCache[cacheKey],
-            error: null,
-            radius: direction === 'Overview' ? null : radius,
-        }));
-        return;
-    }
-
-    // 4. Set loading state
     setActivePopupData(prev => ({
         ...prev,
         loading: true,
-        aiContent: 'Searching for towns and generating suggestions...',
+        aiContent: 'Generating suggestions...',
         error: null,
         radius: direction === 'Overview' ? null : radius,
     }));
 
+    if (aiPins.length > 0) {
+        aiPins.forEach(pin => pin.remove());
+        setAiPins([]);
+    }
+
     try {
-        // Step 1: Use Mapbox to find relevant towns within the search arc.
-        console.log("Step 1: Calling fetchRelevantTowns...");
-        const relevantTowns = await fetchRelevantTowns([lng, lat], radius, direction);
-        console.log(`Step 1 Result: Found ${relevantTowns.length} relevant towns.`);
-
-        if (relevantTowns.length === 0) {
-            const aiContentToDisplay = 'No major towns found within the search area. Try a different location or a larger radius.';
-            console.warn(aiContentToDisplay);
-            setActivePopupData(prev => ({
-                ...prev,
-                loading: false,
-                aiContent: aiContentToDisplay,
-                error: null,
-            }));
-            return;
-        }
-
-        // Step 2: Extract the town names to send to the AI
-        const townNames = relevantTowns.map(town => town.text);
-        console.log("Step 2: Towns to send to AI:", JSON.stringify(townNames));
-
-
-        // Step 3: Send the towns and filters directly to the backend.
-        console.log("Step 3: Sending town names and filters to AI service...");
+        // Use the activeFilters state directly for the API call
         const response = await fetch(`${API_BASE_URL}/generate-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ townNames, activeFilters }),
+            body: JSON.stringify({ placeName, direction, lng, lat, radius, filters: activeFilters }),
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`Step 3 API Error: Status ${response.status}, Body: ${errorText}`);
-            throw new Error(`AI suggestion server returned an error: ${response.status}`);
+        const responseText = await response.text();
+        if (!responseText) {
+            throw new Error('Server returned an empty response.');
         }
 
-        const result = await response.json();
-        const aiGeneratedContent = result?.suggestion;
-        console.log("Step 3 Result: AI response received.");
-        console.log("AI Raw Content:", aiGeneratedContent);
-
-        if (!aiGeneratedContent) {
-            throw new Error('AI suggestion server returned an empty response.');
-        }
-        
-        let aiDescriptions = {};
-        
-        // Step 4: Clean and parse the AI's response.
-        let cleanedContent = aiGeneratedContent.replace(/```json\s*|```/g, '').trim();
-        console.log("Cleaned AI Content:", cleanedContent);
-
+        let data;
         try {
-            aiDescriptions = JSON.parse(cleanedContent);
-            console.log("Successfully parsed AI response as JSON:", aiDescriptions);
-        } catch (jsonError) {
-            console.error("AI response was not valid JSON.", jsonError);
-            // We now assume the AI will always return JSON due to backend changes.
-            // If this fails, it's a critical error.
-            throw new Error('AI response was not a valid JSON object.');
+            data = JSON.parse(responseText);
+        } catch (e) {
+            console.error('Failed to parse JSON:', responseText);
+            throw new Error('Received a non-JSON response from the server.');
         }
 
-        // Step 5: Add the new pins to the map
-        const finalPins = relevantTowns
-            .filter(town => aiDescriptions[town.text]) // Only keep towns that the AI provided a description for
-            .map(town => {
-                let emojiToUse = '📌';
-                if (Array.isArray(activeFilters) && activeFilters.length > 0) {
-                    const foundFilter = activeFilters.find(filter => filterEmojis[filter.toLowerCase()]);
-                    if (foundFilter) {
-                        emojiToUse = filterEmojis[foundFilter.toLowerCase()];
-                    }
+        if (!response.ok) {
+            throw new Error(data.details || data.error || 'Network response was not ok');
+        }
+
+        const aiGeneratedContent = data.suggestion;
+        const locationRegex = /\*\*(.*?)\*\*/g;
+        let match;
+        const locationsText = [];
+
+        while ((match = locationRegex.exec(aiGeneratedContent)) !== null) {
+            const place = match[1].trim();
+            locationsText.push(place);
+        }
+
+        if (locationsText.length > 0) {
+            // Get the first active filter to determine the emoji
+            const selectedFilter = activeFilters.length > 0 ? activeFilters[0] : null;
+            // Use the filter directly as the key to get the correct emoji
+            const emoji = selectedFilter && filterEmojis[selectedFilter] ? filterEmojis[selectedFilter] : '📍';
+            
+            console.log(`Applying emoji for filter: ${selectedFilter}`, emoji);
+
+            const newAiPins = [];
+            for (const place of locationsText) {
+                const geocodingResponse = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place)}.json?access_token=${mapboxgl.accessToken}`);
+                const geocodingData = await geocodingResponse.json();
+
+                if (geocodingData.features && geocodingData.features.length > 0) {
+                    const coordinates = geocodingData.features[0].center;
+                    const el = document.createElement('div');
+                    el.className = 'ai-pin';
+                    el.innerHTML = emoji;
+                    
+                    Object.assign(el.style, {
+                        fontSize: '20px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                        border: '2px solid #000',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '30px',
+                        height: '30px',
+                        borderRadius: '50%',
+                        cursor: 'pointer'
+                    });
+
+                    const pin = new mapboxgl.Marker({ element: el }).setLngLat(coordinates).addTo(map.current);
+                    newAiPins.push(pin);
+                } else {
+                    console.warn(`Could not find coordinates for: ${place}`);
                 }
-                
-                return {
-                    id: uuidv4(),
-                    coords: town.center,
-                    description: aiDescriptions[town.text],
-                    name: town.text,
-                    isAIGenerated: true,
-                    emoji: emojiToUse,
-                    filters: activeFilters,
-                };
-            });
-        console.log(`Step 5: Generated ${finalPins.length} final pins.`);
-
-        if (finalPins.length > 0) {
-            setDroppedPins(prevPins => {
-                const nonAiPins = prevPins.filter(pin => !pin.isAIGenerated);
-                return [...nonAiPins, ...finalPins];
-            });
+            }
+            setAiPins(newAiPins);
         } else {
-            console.log('AI did not provide descriptions for the relevant towns.');
+            console.log("No locations found in the AI response to place pins.");
+            setAiPins([]);
         }
-
-        // 6. Update the UI with the final AI content
-        const finalAiContentToDisplay = finalPins.length > 0
-            ? 'Based on the towns found within the search area, here are a few suggestions:\n' + finalPins.map(pin => `**${pin.name}**: ${pin.description}`).join('\n')
-            : 'No suggestions found within the search area.';
-
+        
+        const cacheKey = direction + '-' + activeFilters.sort().join(',');
+        
         setDroppedPins(prevPins =>
             prevPins.map(pin =>
                 pin.id === pinId
-                    ? { ...pin, aiCache: { ...pin.aiCache, [cacheKey]: finalAiContentToDisplay } }
+                    ? { ...pin, aiCache: { ...pin.aiCache, [cacheKey]: aiGeneratedContent } }
                     : pin
             )
         );
@@ -410,11 +289,9 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
         setActivePopupData((prev) => ({
             ...prev,
             loading: false,
-            aiContent: finalAiContentToDisplay,
+            aiContent: aiGeneratedContent,
             error: null,
         }));
-        console.log("--- Finished AI Suggestion Fetch ---");
-
     } catch (error) {
         console.error('Error fetching AI suggestion:', error);
         setActivePopupData((prev) => ({
@@ -424,12 +301,8 @@ const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, l
             error: error.message,
         }));
     }
-}, [droppedPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis, isPointInArc, fetchGeneralOverview, fetchRelevantTowns]);
-  
-
-
-  
-  
+}, [map, aiPins, setDroppedPins, setActivePopupData, activeFilters, filterEmojis]); // Added filterEmojis to dependency array
+ 
 
   
 
