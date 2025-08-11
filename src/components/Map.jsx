@@ -197,35 +197,40 @@ const filterEmojis = {
 
 // A new function to perform a geospatial search for towns within the radius and direction.
 const fetchRelevantTowns = async (center, radiusKm, direction) => {
-    try {
-        const bbox = getArcBoundingBox(center, radiusKm, direction);
-        if (!bbox) {
-            console.error('Could not generate a valid bounding box.');
-            return [];
-        }
-        const bboxString = bbox.join(',');
+    try {
+        const bbox = getArcBoundingBox(center, radiusKm, direction);
+        if (!bbox) {
+            console.error('Could not generate a valid bounding box.');
+            return [];
+        }
+        const bboxString = bbox.join(',');
 
-        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/place.json?bbox=${bboxString}&types=place,locality&access_token=${mapboxgl.accessToken}`);
+        // Corrected Mapbox API call: changed 'place.json' to 'poi.json'
+        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/poi.json?bbox=${bboxString}&types=place,locality&access_token=${mapboxgl.accessToken}`);
 
-        if (!response.ok) {
-            throw new Error(`Mapbox API request failed with status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        const features = data.features || [];
+        if (!response.ok) {
+            throw new Error(`Mapbox API request failed with status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const features = data.features || [];
 
-        // Filter the towns to only include those within the specified arc
-        const relevantTowns = features.filter(feature => {
-            const featureCoords = feature.center;
-            return isPointInArc(featureCoords, center, radiusKm, direction);
-        });
+        // Filter the towns to only include those within the specified arc
+        const relevantTowns = features.filter(feature => {
+            const featureCoords = feature.center;
+            return isPointInArc(featureCoords, center, radiusKm, direction);
+        });
 
-        return relevantTowns;
-    } catch (error) {
-        console.error('Error fetching relevant towns:', error);
-        return [];
-    }
+        return relevantTowns;
+    } catch (error) {
+        console.error('Error fetching relevant towns:', error);
+        return [];
+    }
 };
+
+
+
+  
 
 const fetchAISuggestion = useCallback(async (pinId, placeName, direction, lng, lat, radius = 5) => {
     // 1. Validate coordinates
